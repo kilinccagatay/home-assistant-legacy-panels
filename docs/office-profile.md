@@ -166,3 +166,23 @@ minute shows `<1 dk` rather than claiming a completed print.
 Configured AMS slots always retain their physical positions and numbers. Empty
 or unavailable slots show an em dash material label and a gray/white checker
 swatch; an empty slot cannot retain the active-filament highlight.
+
+## Daily weather overview
+
+Set `weeklyForecast: true` in the private office mapping to fill the upper-left
+pair above the agenda. Set `forecastDays: 5` for five wider columns (default: seven). The first column is always today, followed by consecutive local calendar days. This option requires the office agenda layout; Denver
+remains unchanged. The widget reads daily forecasts from the existing Home
+Assistant weather entity through HoaryDash's authenticated proxy. No location,
+weather API key or Home Assistant token is placed in frontend configuration.
+
+The read-only card shows Turkish weekday labels, distinct colored SVG weather
+symbols and daily high/low temperatures. It requests forecasts at most every
+30 minutes while the home view is visible, retries failures after one minute,
+and expires cached values after one hour. Disconnection hides cached values.
+A provider may supply fewer than seven days: those days retain their columns
+with em dashes and an explicit missing-data note, rather than invented readings.
+No native selection menu or service command is triggered by holding the card.
+
+Actual Samsung forecast card (cropped to exclude calendar titles and private configuration):
+
+![Five-day forecast starting today](images/office-five-day-forecast.png)

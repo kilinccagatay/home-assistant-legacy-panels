@@ -183,6 +183,7 @@
       views.push({name:name,status:status,indoor:indoorValue,humidity:humidityValue,clock:clock,date:date,weekday:weekday,temperature:temperature,condition:condition,weatherIcon:weatherIcon,previousWeatherIcon:'',meeting:meeting});return controls;
     }
     var agendaBox=null,agendaHeading=null,agendaList=null,agendaSignature=null;
+    var forecastBox=null,forecastList=null,forecastNote=null,forecastRows=[],forecastAt=0,forecastAttempt=0,forecastPending=false,forecastSignature='';
     var room=cfg.roomLights||{};
     var controls=makeView('Ana',officeProfile?'ÇALIŞMA ODAM':'EVİM');
     var corridorIds=[cfg.lights.front,cfg.lights.rear];if(room.entrance){corridorIds.push(room.entrance);}
@@ -196,6 +197,13 @@
         ['touchstart','selectstart','contextmenu'].forEach(function(name){agendaBox.addEventListener(name,function(ev){ev.preventDefault();},false);});
         agendaHeading=node('h2','pv2-agenda-heading','Toplantılar');agendaList=node('div','pv2-agenda-list');
         agendaBox.appendChild(agendaHeading);agendaBox.appendChild(agendaList);controls.appendChild(agendaBox);
+      }
+      if(cfg.weeklyForecast===true&&cfg.agenda){
+        forecastBox=node('section','pv2-forecast');forecastBox.setAttribute('aria-label',(cfg.forecastDays===5?'Beş':'Yedi')+' günlük hava tahmini');
+        var forecastHeader=node('div','pv2-forecast-header');forecastHeader.appendChild(node('h2','',(cfg.forecastDays===5?'5':'7')+' GÜNLÜK HAVA'));
+        forecastNote=node('span','pv2-forecast-note','Yükleniyor…');forecastHeader.appendChild(forecastNote);
+        forecastList=node('div','pv2-forecast-days');forecastBox.appendChild(forecastHeader);forecastBox.appendChild(forecastList);controls.appendChild(forecastBox);
+        ['touchstart','selectstart','contextmenu'].forEach(function(name){forecastBox.addEventListener(name,function(ev){ev.preventDefault();},false);});
       }
       lightControl(controls,cfg.lights.office,'Oda Lambası','desk');
       if(cfg.robotEnabled!==false){
@@ -468,9 +476,45 @@
       }
       if(items.length>limit){agendaHeading.appendChild(node('span','pv2-agenda-more',' +'+(items.length-limit)));}
     }
+    function forecastIcon(condition){
+      var sun='<circle cx="12" cy="12" r="4" fill="#f6cb73" stroke="#f6cb73"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2" stroke="#f6cb73"/>',cloud='<path d="M6 17a4 4 0 0 1 0-8 6 6 0 0 1 11-1 5 5 0 0 1 1 10H6" fill="#acc9df" stroke="#cce2f2"/>';
+      var content=cloud;
+      if(condition==='sunny'){content=sun;}else if(condition==='partlycloudy'){content='<g transform="translate(-2 -3) scale(.8)">'+sun+'</g>'+cloud;}
+      else if(condition==='clear-night'){content='<path d="M19 15A8 8 0 0 1 9 4a8 8 0 1 0 10 11" fill="#d5d9f5" stroke="#e8eaff"/>';}
+      else if(/lightning/.test(condition)){content=cloud+'<path d="m13 13-4 6h4l-2 4 7-7h-5l2-3" fill="#f6cb73" stroke="#f6cb73"/>';}
+      else if(/snow/.test(condition)){content=cloud+'<path d="M6 21h2m-1-1v2m5-1h2m-1-1v2m5-1h2m-1-1v2" stroke="#d4edff"/>';}
+      else if(/rain|pouring|hail/.test(condition)){content=cloud+'<path d="m7 20-1 3m7-3-1 3m7-3-1 3" stroke="#7ec9ff"/>';}
+      else if(condition==='fog'){content=cloud+'<path d="M3 20h18M6 23h12" stroke="#a7c4da"/>';}
+      else if(/windy/.test(condition)){content='<path d="M2 8h15a3 3 0 1 0-3-3M2 13h18M2 18h12a3 3 0 1 1-3 3" stroke="#b9dde9"/>';}
+      else if(!condition||!conditions[condition]){content='<path d="M8 12h8" stroke="#8b9bad"/>';}
+      return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+content+'</svg>';
+    }
+    function renderForecast(){
+      if(!forecastBox){return;}
+      var now=new Date().getTime(),fresh=connection()&&forecastAt>0&&now-forecastAt<3600000,rows=C.forecastDays(fresh?forecastRows:[],now,cfg.forecastDays),count=0;
+      for(var i=0;i<rows.length;i++){if(rows[i].high!==null){count++;}}
+      var note=!connection()?'Bağlantı yok':!fresh?(forecastPending?'Yükleniyor…':'Tahmin alınamadı'):count<rows.length?'Eksik günler: —':'En yüksek / en düşük';
+      var signature=JSON.stringify([fresh,rows,note]);if(signature===forecastSignature){return;}forecastSignature=signature;setText(forecastNote,note);
+      while(forecastList.firstChild){forecastList.removeChild(forecastList.firstChild);}
+      var labels=['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+      for(var j=0;j<rows.length;j++){
+        var day=rows[j],cell=node('div','pv2-forecast-day'+(j===0?' pv2-forecast-today':'')),symbol=node('span','pv2-forecast-icon'),high=day.high===null?'—':day.high+'°',low=day.low===null?'—':day.low+'°';
+        cell.style.width=(100/rows.length)+'%';cell.appendChild(node('span','pv2-forecast-weekday',j===0?'Bugün':labels[day.day]));symbol.innerHTML=forecastIcon(day.condition);cell.appendChild(symbol);cell.appendChild(node('span','pv2-forecast-high',high));cell.appendChild(node('span','pv2-forecast-low',low));
+        cell.setAttribute('aria-label',(j===0?'Bugün':labels[day.day])+': '+(day.high===null?'Tahmin yok':(conditions[day.condition]||'Hava tahmini')+', en yüksek '+high+', en düşük '+low));forecastList.appendChild(cell);
+      }
+    }
+    function requestForecast(){
+      if(!forecastBox||forecastPending||!connection()||document.hidden||activeView()!=='Ana'){return;}
+      var now=new Date().getTime();if(now-forecastAttempt<60000||forecastAt&&now-forecastAt<1800000){return;}
+      forecastAttempt=now;forecastPending=true;renderForecast();
+      var xhr=new XMLHttpRequest(),finished=false;
+      function finish(ok){if(finished){return;}finished=true;forecastPending=false;if(ok){try{var body=JSON.parse(xhr.responseText),entry=body.service_response&&body.service_response[cfg.weather];if(entry&&Object.prototype.toString.call(entry.forecast)==='[object Array]'&&entry.forecast.length){forecastRows=entry.forecast;forecastAt=new Date().getTime();}}catch(ignore){}}renderForecast();}
+      xhr.open('POST','/api/proxy/api/services/weather/get_forecasts?return_response',true);xhr.setRequestHeader('Content-Type','application/json');xhr.timeout=15000;
+      xhr.onload=function(){finish(xhr.status>=200&&xhr.status<300);};xhr.onerror=xhr.ontimeout=xhr.onabort=function(){finish(false);};xhr.send(JSON.stringify({entity_id:cfg.weather,type:'daily'}));
+    }
     function updateMeeting(v){var entry=get(cfg.meeting),age=new Date().getTime()/1000-Number(entry.attributes.last_report_epoch||0);v.meeting.classList.toggle('pv2-active',v.name==='Ana'&&connection()&&entry.state==='on'&&age>=-5&&age<40);}
     function render(){
-      renderAgenda();syncDialog();syncPowerDialog();syncPrinterCamera();renderPrinterDetails();var active=activeView();
+      renderAgenda();renderForecast();syncDialog();syncPowerDialog();syncPrinterCamera();renderPrinterDetails();var active=activeView();
       for(var i=0;i<cards.length;i++){if(cards[i].view===active){drawCard(cards[i]);}}
       var entry=get(cfg.weather),t=entry.attributes.temperature,valid=C.available(entry)&&t!==null&&t!==undefined&&t!==''&&isFinite(Number(t));
       var weatherName=entry.state==='sunny'?'sun':entry.state==='clear-night'?'moon':(/rain|pouring|hail|snow/.test(entry.state)?'rain':'cloud');
@@ -518,7 +562,7 @@
       })(eid,listeners[eid]);
     }}
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
-    function clockTick(){renderAgenda();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
+    function clockTick(){renderAgenda();renderForecast();requestForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
     function navigated(){for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();clockTick();render();}
     window.addEventListener('hashchange',navigated,false);
     window.addEventListener('screen-navigate',navigated,false);

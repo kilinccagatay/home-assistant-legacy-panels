@@ -23,6 +23,8 @@ def build_configuration(original, mapping, assets, dashboard='dash'):
     assert set(lights.values()).issubset(mapping['allLights'])
     assert all(e in mapping['allLights'] for e in mapping.get('roomLights', {}).values()), 'Room lights must be subscribed household lights'
     assert mapping['countdown'].startswith('script.') and mapping['vacuum'].startswith('vacuum.')
+    if mapping.get('weeklyForecast'):
+        assert mapping.get('profile') == 'office' and mapping.get('agenda') and mapping['weather'].startswith('weather.'), 'Weekly forecast requires the office agenda layout and an explicit weather entity'
     if mapping.get('agenda'):
         assert mapping.get('profile') == 'office' and mapping['agenda'].startswith('sensor.'), 'Agenda is an office-only explicit sensor'
     if mapping.get('indoorTemperature'):
