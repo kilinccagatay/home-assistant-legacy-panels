@@ -1,37 +1,97 @@
-# Home Assistant panels on older Android hardware — Denver-tested build
+# Home Assistant Legacy Panels
 
-This project documents a Home Assistant panel for older Android hardware with limited CPU power, RAM, and browser support. The reference build is a Denver TAC-70051 with Android 4.1.1 and an 800 × 480 screen. Dashboard layout and application tuning can inform other tablets; the printable enclosure and Allwinner root modifications remain specific to this device. Other hardware has not been verified.
+Lightweight Home Assistant touch dashboards for older Android tablets and phones.
+Separate device profiles keep shared interface code reusable while preserving
+hardware-specific behavior. The project started on a Denver TAC-70051 and now
+also includes a Samsung SM-J510FN office panel.
 
-Start with the [older-hardware setup and tuning guide](https://github.com/kilinccagatay/wallpanel-android-legacy/blob/lite-motion-core/docs/legacy-hardware-guide.md). This repository supplies the dashboard, screenshots, and physical-build examples; the [WallPanel Lite fork](https://github.com/kilinccagatay/wallpanel-android-legacy/tree/lite-motion-core) is the maintained source for the current APK and root helpers.
+**Project renamed:** previously `denver-tac-70051-home-assistant-base-station`.
+Denver remains a supported reference profile; its printable enclosure is specific
+to that tablet. This repository contains dashboards, configuration examples and
+guides. The separate [WallPanel Legacy Lite fork](https://github.com/kilinccagatay/wallpanel-android-legacy/tree/lite-motion-core)
+contains APK and Android/root-helper sources.
 
-The enclosure, print profile, and assembly guide are on [MakerWorld](https://makerworld.com/en/models/3487173-denver-tac-70051-tablet-homeassistant-base-station#profileId-3982293). The complete build story is on [my blog](https://cagataykilinc.com.tr/2026/10/25/denver-tac-70051-home-assistant-base-station/).
+## Device profiles
+
+| | Denver home panel | Samsung office panel |
+| --- | --- | --- |
+| Reference hardware | TAC-70051, Android 4.1.1 / API 16, 800 × 480 | SM-J510FN, Android 6 / API 23, landscape |
+| Home controls | Eight household-lighting / vacuum controls | Office light, Bambu Lab H2D summary, agenda and forecast |
+| Other views | Kitchen, Entrance, Rooms, Robot | Lights grouped by area; dedicated Printer view |
+| Battery overlay | Native battery/charging badge; long press opens Android controls | Hidden for this batteryless installation |
+| Meeting data | Fresh boolean badge only; no meeting titles | Optional selected-calendar titles and start/end times |
+| Hardware tuning | Allwinner-specific backlight gate and motion profile | Separate flavor/configuration; navigation lock is reversible |
+
+**Status:** the expanded office implementation is on
+[`codex/office-workday-panel`](https://github.com/kilinccagatay/home-assistant-legacy-panels/tree/codex/office-workday-panel)
+and [draft PR #1](https://github.com/kilinccagatay/home-assistant-legacy-panels/pull/1).
+Individual controls and layouts have installed-device evidence; the full general
+regression gate has not passed. The Samsung display/wake baseline remains an
+open issue. This is experimental software, not a fully accepted hardware release.
+
+## Features at a glance
+
+- **Lightweight frontend:** HoaryDash, ES5 JavaScript, no application framework;
+  designed for old Chromium/Crosswalk rather than the current Lovelace frontend.
+- **Readable overview:** large clock, centered two-line Turkish date, translated
+  weather, indoor temperature and humidity from explicitly mapped sensors.
+- **Lighting:** tap to toggle; long press for supported brightness, color and
+  temperature controls; immediate touch sound, synchronized state and per-lamp
+  default tones. Corridor and kitchen groups have explicit lighting targets.
+- **Home actions:** robot start/return-to-dock and a cancellable 60-second
+  household-lights-off countdown. Printer/server power is excluded.
+- **Office agenda:** two upcoming work events (three when space permits),
+  weekend-to-Monday selection, and explicit stale/disconnected states.
+- **Office forecast:** five days beginning **today**, colored SVG symbols and
+  daily high/low temperatures. Uses the existing HA weather source; missing days
+  show an em dash. Refreshes every 30 minutes while the home view is visible.
+- **Printer overview:** status accents, active-print percentage and progress,
+  remaining time, nozzle/bed readings, grouped AMS-HT / AMS 2 Pro filament slots,
+  and visible empty slots. Camera requests stop outside its view or when offline.
+- **Printer power:** double tap, explicit power-off confirmation, and an additional
+  acknowledgement when a print is active. Targets an existing configured switch.
+- **Device isolation:** office-only calendar/forecast data, separate preferences,
+  no Samsung battery overlay, and hardware-specific Android behavior kept apart.
+- **Acceptance discipline:** rollback/settings preservation and a
+  [mandatory regression checklist](docs/regression-checklist.md), including
+  balanced padding, optical alignment and selected/unselected-state review.
+
+## Start here
+
+- [Panel V2 setup and entity mapping](docs/panel-v2.md)
+- [Office profile and printer/calendar/forecast guide](https://github.com/kilinccagatay/home-assistant-legacy-panels/blob/codex/office-workday-panel/docs/office-profile.md)
+- [Older-hardware Android setup and tuning](https://github.com/kilinccagatay/wallpanel-android-legacy/blob/lite-motion-core/docs/legacy-hardware-guide.md)
+- [Mac Call Indicator companion](https://github.com/kilinccagatay/mac-call-indicator)
+- [Denver enclosure on MakerWorld](https://makerworld.com/en/models/3487173-denver-tac-70051-tablet-homeassistant-base-station#profileId-3982293)
+
+The household entity mapping is private. Replace all example entities with your
+own. Never copy one device's root/display commands onto another model.
+
+## Office preview
+
+![Office layout with synthetic meeting titles and printer values](docs/images/office-agenda-printer-demo.jpg)
+
+This overview is a synthetic layout example; no real work meetings are published.
+The forecast below is cropped from the Samsung panel and contains no calendar data:
+
+![Five-day forecast starting today](docs/images/office-five-day-forecast.png)
+
+## Denver reference build
+
+Stock Android 4.1.1 / API 16; Allwinner A13 (single-core Cortex-A8); about
+354 MB usable RAM; 7-inch 800 × 480 display. The normal Home Assistant frontend
+cannot run reliably in its old browser. HoaryDash is the compatibility frontend.
+
+The tested charger-powered profile keeps Android, the LCD image and camera alive
+while switching the separate backlight-enable gate off. Brightness zero alone
+left shimmer on this unit. The reference settings are 3 FPS / 333 ms, a 30-second
+idle timeout, 75% wake brightness and a locally tuned threshold of 5. These are
+Denver observations, not universal Samsung settings or battery-life guarantees.
 
 ![Finished Denver tablet base station](photos/dashboard.webp)
 
-## What works
-
-- Stock Android 4.1.1 with the custom WallPanel Legacy Lite fork from `lite-motion-core`. Upstream 0.8.4 build 7 was the initial installation.
-- [HoaryDash](https://github.com/Skrubbadubba/HoaryDash) 0.13.0 as a Chromium 44-compatible Home Assistant frontend.
-- Large clock, centered two-line Turkish date, translated weather conditions, and room lighting controls.
-- Separate Kitchen, Entrance, Robot Vacuum, and Bambu Lab printer pages.
-- Automatic return to the Home page after inactivity.
-- Optional Mac Teams call badge on Home, with a larger red dot above a centered label and no navigation overlap.
-- Front-camera motion detection that restores the backlight to a capped 75% level.
-- Charger-powered backlight-only profile: the LCD image, Android, and camera stay active while the separate backlight-enable gate is closed. Brightness zero alone was insufficient on this unit; the earlier LCD-off profile is retained for rollback.
-- Boot launcher and watchdog that recover WallPanel after a low-memory kill or gradual Crosswalk memory growth.
-- Camera profile: 3 FPS / 333 ms, 30-second inactivity dimming, 75% wake brightness, and a locally tuned motion difference threshold of 5.
-
-## The tablet
-
-| Item | Observed on this unit |
-| --- | --- |
-| Android | 4.1.1, API 16 |
-| SoC | Allwinner A13 / sun5i, single-core Cortex-A8 |
-| Usable RAM | About 354 MB |
-| Display | 7-inch touch screen, 800 × 480 |
-| Firmware family | A13_86V_M758C1 |
-
-The current Home Assistant Android app does not support this Android version. The normal Home Assistant frontend also stops during loading in the tablet's old browser. Changing from a Lovelace URL to the Home Assistant root does not solve that JavaScript compatibility problem. HoaryDash renders the dashboard server-side for old Chromium versions and is the reliable path used here.
+The original [build story](https://cagataykilinc.com.tr/2026/10/25/denver-tac-70051-home-assistant-base-station/)
+and enclosure remain useful historical references.
 
 ## Updated touch controls
 
@@ -173,7 +233,7 @@ The USB-C module feeds the tablet's **original Micro-USB 5 V input**, not the ba
 
 ## Privacy and scope
 
-This repository intentionally excludes live credentials, access tokens, Wi-Fi data, private network addresses, computer usernames and paths, ADB serial numbers, Home Assistant backups, and raw boot-partition images. Entity IDs in the examples are placeholders. The project documents one verified device build; it is not a universal firmware image or a ready-to-flash ROM.
+This repository intentionally excludes live credentials, access tokens, Wi-Fi data, private network addresses, computer usernames and paths, ADB serial numbers, Home Assistant backups, and raw boot-partition images. Entity IDs in the examples are placeholders. The project documents separate device profiles and their observed limits; it is not a universal firmware image or a ready-to-flash ROM.
 
 ## Upstream projects
 
@@ -181,15 +241,3 @@ This repository intentionally excludes live credentials, access tokens, Wi-Fi da
 - [HoaryDash](https://github.com/Skrubbadubba/HoaryDash)
 - [Home Assistant vacuum integration](https://www.home-assistant.io/integrations/vacuum/)
 - [linux-sunxi tools](https://github.com/linux-sunxi/sunxi-tools)
-
-## Separate office panel — development preview
-
-The optional office profile keeps its own layout and configuration while the
-original tablet dashboard remains separate. It provides office lighting, a
-workday agenda, printer state/progress, camera lifecycle and physically grouped
-AMS slots. Indoor temperature/humidity sources can be shared without subscribing
-the original dashboard to work calendar titles.
-
-See the [office profile guide](docs/office-profile.md) and its synthetic preview.
-This work is under regression review; the complete physical acceptance checklist
-still applies and no completed-release claim is made.
