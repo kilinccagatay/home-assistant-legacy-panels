@@ -191,6 +191,9 @@
       if(cfg.agenda){
         controls.classList.add('pv2-with-agenda');
         agendaBox=node('section','pv2-agenda');agendaBox.setAttribute('aria-label','İş takvimi');
+        // This is read-only kiosk content. Legacy Crosswalk can crash in its
+        // native text-selection menu after a touch hold; do not enter that path.
+        ['touchstart','selectstart','contextmenu'].forEach(function(name){agendaBox.addEventListener(name,function(ev){ev.preventDefault();},false);});
         agendaHeading=node('h2','pv2-agenda-heading','Toplantılar');agendaList=node('div','pv2-agenda-list');
         agendaBox.appendChild(agendaHeading);agendaBox.appendChild(agendaList);controls.appendChild(agendaBox);
       }

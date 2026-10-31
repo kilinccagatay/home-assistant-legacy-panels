@@ -193,3 +193,6 @@
 .panel-v2-office .pv2-settings-trigger svg { position:relative; display:block; width:18px; height:18px; }
 /* Optical alignment is separate from the SVG box's mathematical center. */
 .pv2-bed-reading-icon svg { -webkit-transform:translateY(-1px); transform:translateY(-1px); }
+
+/* Kiosk text is read-only; avoid Crosswalk's native selection handles/menu. */
+.panel-v2-office .pv2-panel,.pv2-agenda,.pv2-agenda * { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }

@@ -22,6 +22,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
  assert.equal(d.querySelectorAll('.pv2-agenda-event').length,2);
  assert.match(d.querySelector('.pv2-agenda').textContent,/Synthetic next/);
  assert.equal(d.querySelector('.pv2-agenda img'),null,'calendar titles are text, never HTML');
+ for(const type of ['touchstart','selectstart','contextmenu']){const hold=new w.Event(type,{bubbles:true,cancelable:true});d.querySelector('.pv2-agenda-title').dispatchEvent(hold);assert(hold.defaultPrevented,'read-only agenda must cancel native '+type);}
  assert.match(d.querySelector('.pv2-agenda-heading').textContent,/Bugün/);
  states[cfg.agenda].attributes.events=[];update();await sleep(20);assert.match(d.querySelector('.pv2-agenda-empty').textContent,/Bugün başka toplantı yok/);
  states[cfg.agenda].attributes.valid_until=now-1;update();await sleep(20);assert.match(d.querySelector('.pv2-agenda-empty').textContent,/Takvim güncellenemiyor/);
