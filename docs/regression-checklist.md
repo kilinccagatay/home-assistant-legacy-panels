@@ -65,7 +65,7 @@ brightness setting of zero, or a desktop preview alone is not acceptance.
 | H06 | Normal next-on restores each configured lamp's calibrated default tone, including warm white where appropriate, without an off/on flash or forcing all lamps to cold white. |
 | H07 | “Evi Temizle” starts only when appropriate; “Temizliği Durdur” returns the robot to its dock. Returning/unavailable/error states prevent invalid start actions. |
 | H08 | All-lights-off countdown runs 60 seconds, appears only on its button, second tap cancels. The allowlist includes household lighting only; printer/server power and unrelated switches are excluded. Verify targets before any live execution. |
-| H09 | Meeting indicator appears only on Evim for fresh meeting state, disappears on meeting end and becomes inactive when its heartbeat expires. No meeting titles, participants or company data are transmitted. |
+| H09 | Meeting indicator appears only on Evim for fresh meeting state, disappears on meeting end and becomes inactive when its heartbeat expires. The ordinary/Denver meeting channel transmits no meeting titles, participants or company data. An explicitly enabled office calendar channel may show titles and times only; test its independent expiry, next-workday selection and new-event synchronization. |
 | H10 | Disconnect/reconnect HA: unavailable controls cannot send misleading actions; reconnection updates actual state and never leaves a stale meeting indicator or stuck pending dialog. |
 
 ## Engineering and publication

@@ -181,3 +181,15 @@ This repository intentionally excludes live credentials, access tokens, Wi-Fi da
 - [HoaryDash](https://github.com/Skrubbadubba/HoaryDash)
 - [Home Assistant vacuum integration](https://www.home-assistant.io/integrations/vacuum/)
 - [linux-sunxi tools](https://github.com/linux-sunxi/sunxi-tools)
+
+## Separate office panel — development preview
+
+The optional office profile keeps its own layout and configuration while the
+original tablet dashboard remains separate. It provides office lighting, a
+workday agenda, printer state/progress, camera lifecycle and physically grouped
+AMS slots. Indoor temperature/humidity sources can be shared without subscribing
+the original dashboard to work calendar titles.
+
+See the [office profile guide](docs/office-profile.md) and its synthetic preview.
+This work is under regression review; the complete physical acceptance checklist
+still applies and no completed-release claim is made.

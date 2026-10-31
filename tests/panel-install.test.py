@@ -52,6 +52,46 @@ class InstallationTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             install.build_configuration(original, mapping, ROOT / 'examples/panel-v2')
 
+    def test_office_profile_isolated_from_original_dashboard(self):
+        original = yaml.safe_load((ROOT / 'examples/hoarydash.example.yaml').read_text())
+        original['dashboards']['office'] = copy.deepcopy(original['dashboards']['dash'])
+        mapping = json.loads((ROOT / 'examples/panel-v2/config.example.json').read_text())
+        mapping['profile'] = 'office'
+        mapping['indoorTemperature'] = 'sensor.example_indoor'
+        mapping['indoorHumidity'] = 'sensor.example_humidity'
+        mapping['otherControls'] = [{'entity': 'sensor.example_printer_status', 'label': 'Printer', 'kind': 'sensor'}]
+        result = install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
+        self.assertEqual(result['dashboards']['dash'], original['dashboards']['dash'])
+        self.assertIn('panel-v2-office', result['dashboards']['office']['theme']['custom'])
+        cards = result['dashboards']['office']['screens'][0]['sensors']['cards']
+        self.assertIn('sensor.example_printer_status', {c['entity_id'] for c in cards})
+        self.assertIn('sensor.example_indoor', {c['entity_id'] for c in cards})
+        self.assertIn('sensor.example_humidity', {c['entity_id'] for c in cards})
+        mapping['robotEnabled'] = False
+        without_robot = install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
+        self.assertNotIn('Robot', [s['name'] for s in without_robot['dashboards']['office']['screens']])
+        self.assertEqual(without_robot['dashboards']['dash'], original['dashboards']['dash'])
+        mapping['otherControls'][0]['kind'] = 'power'
+        with self.assertRaises(AssertionError):
+            install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
+
+    def test_agenda_subscription_is_office_only(self):
+        original = yaml.safe_load((ROOT / 'examples/hoarydash.example.yaml').read_text())
+        original['dashboards']['office'] = copy.deepcopy(original['dashboards']['dash'])
+        mapping = json.loads((ROOT / 'examples/panel-v2/config.example.json').read_text())
+        mapping['agenda'] = 'sensor.example_agenda'
+        with self.assertRaises(AssertionError):
+            install.build_configuration(original, mapping, ROOT / 'examples/panel-v2')
+        mapping['profile'] = 'office'
+        result = install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
+        self.assertEqual(result['dashboards']['dash'], original['dashboards']['dash'])
+        self.assertNotIn(mapping['agenda'], result['dashboards']['dash']['theme']['custom'])
+        cards = result['dashboards']['office']['screens'][0]['sensors']['cards']
+        self.assertIn(mapping['agenda'], {c['entity_id'] for c in cards})
+        mapping['agenda'] = 'light.example_wrong_domain'
+        with self.assertRaises(AssertionError):
+            install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
+
     def test_script_guards_empty_target_and_limits_household_lights(self):
         scripts = yaml.safe_load((ROOT / 'examples/panel-v2/lights-off-script.example.yaml').read_text())
         script = scripts['panel_lights_off_delayed']
