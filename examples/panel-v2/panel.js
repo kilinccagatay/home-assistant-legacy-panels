@@ -7,7 +7,7 @@
     var home = document.getElementById('screen-Ana');
     if (!cfg || !C || !home || document.getElementById('panel-v2')) { return; }
     var cache = {}, versions = {}, cards = [], busy = {}, listeners = window.entityListeners || {};
-    var printerCamera=null,powerDialogState=null,printerStartup=null,printerDetails=null;
+    var printerCamera=null,powerDialogState=null,printerStartup=null,printerDetails=null,printerShutdown=null;
     var snapshotNeeded = false, connectionGeneration = 0, renderQueued=false,lastConnection=null;
     function navigateScreen(name){
       var screens=document.querySelectorAll('.screen');
@@ -99,9 +99,23 @@
       });
     }
     function startPrinterStartup(){stopPrinterStartup();var pending={since:new Date().getTime(),inFlight:false,timer:null,expiry:null};printerStartup=pending;pending.timer=setTimeout(checkPrinterStartup,500);pending.expiry=setTimeout(function(){if(printerStartup===pending){stopPrinterStartup();}},120000);scheduleRender();}
+    function stopPrinterShutdown(){if(!printerShutdown){return;}clearTimeout(printerShutdown.expiry);printerShutdown=null;scheduleRender();}
+    function syncPrinterPower(state){
+      if(!cfg.printer||!cfg.printer.power){return;}
+      if(state==='off'){stopPrinterShutdown();if(printerStartup&&printerStartup.powerSeenOn){stopPrinterStartup();}}
+      else if(state==='on'&&printerStartup){printerStartup.powerSeenOn=true;}
+    }
+    function startPrinterShutdown(){
+      stopPrinterStartup();stopPrinterShutdown();var pending={expiry:null};printerShutdown=pending;
+      pending.expiry=setTimeout(function(){if(printerShutdown===pending){stopPrinterShutdown();readPowerState();}},10000);scheduleRender();
+    }
+    function printerDataReady(){return !!cfg.printer&&connection()&&!printerStartup&&!printerShutdown&&!printerOffline()&&(!cfg.printer.power||get(cfg.printer.power).state==='on');}
     function printerStatusLabel(state){
+      if(!connection()){return 'Bağlantı yok';}
+      if(printerShutdown){return 'Kapatılıyor…';}
       if(printerStartup){return 'Açılıyor…';}
       if(cfg.printer&&cfg.printer.power&&get(cfg.printer.power).state==='off'){return 'Kapalı';}
+      if(cfg.printer&&cfg.printer.power&&['on','off'].indexOf(get(cfg.printer.power).state)===-1){return 'Güç durumu bilinmiyor';}
       var names={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',printing:'Yazdırılıyor',prepare:'Hazırlanıyor',pause:'Duraklatıldı',paused:'Duraklatıldı',slicing:'Hazırlanıyor',finish:'Tamamlandı',finished:'Tamamlandı',failed:'Baskı hatası'};
       return names[state.state]||'Veri bekleniyor';
     }
@@ -109,7 +123,7 @@
       var id=cfg.printer&&cfg.printer.power;if(!id||!connection()){if(callback){callback(new Error('Bağlantı yok'));}return;}
       var version=versions[id]||0;
       window.goFetch('/api/proxy/api/states/'+encodeURIComponent(id)+'?panel_power='+new Date().getTime(),function(error,entry){
-        if(!error&&entry&&entry.entity_id===id){if((versions[id]||0)===version){cache[id]={state:entry.state,attributes:entry.attributes||{}};if(printerStartup&&entry.state==='off'&&new Date().getTime()-printerStartup.since>2500){stopPrinterStartup();}scheduleRender();}if(callback){callback(null,get(id));}}
+        if(!error&&entry&&entry.entity_id===id){if((versions[id]||0)===version){cache[id]={state:entry.state,attributes:entry.attributes||{}};syncPrinterPower(entry.state);if(printerStartup&&entry.state==='off'&&new Date().getTime()-printerStartup.since>2500){stopPrinterStartup();}scheduleRender();}if(callback){callback(null,get(id));}}
         else if(callback){callback(error||new Error('Durum okunamadı'));}
       });
     }
@@ -122,9 +136,9 @@
     }
     function perform(key, domain, service, ids, data, onSuccess) {
       if (busy[key]) { return; }
-      busy[key]=true; scheduleRender();
+      busy[key]=true;if(domain==='switch'&&cfg.printer&&ids===cfg.printer.power&&service==='turn_off'){startPrinterShutdown();} scheduleRender();
       if(domain==='switch'&&cfg.printer&&ids===cfg.printer.power){setTimeout(function(){readPowerState();},350);setTimeout(function(){readPowerState();},1500);setTimeout(function(){readPowerState();},3500);}
-      call(domain,service,ids,data).then(function(){busy[key]=false;scheduleRender();if(onSuccess){onSuccess();}},function(){busy[key]=false;if(domain==='switch'&&cfg.printer&&ids===cfg.printer.power&&service==='turn_on'){stopPrinterStartup();}scheduleRender();notice('İşlem gerçekleştirilemedi. Bağlantıyı kontrol edin.');});
+      call(domain,service,ids,data).then(function(){busy[key]=false;scheduleRender();if(onSuccess){onSuccess();}},function(){busy[key]=false;if(domain==='switch'&&cfg.printer&&ids===cfg.printer.power&&service==='turn_off'){stopPrinterShutdown();}if(domain==='switch'&&cfg.printer&&ids===cfg.printer.power&&service==='turn_on'){stopPrinterStartup();}scheduleRender();notice('İşlem gerçekleştirilemedi. Bağlantıyı kontrol edin.');});
     }
     function supported(ids) { return ids.filter(function(id){return C.available(get(id));}); }
     function toggle(ids) {
@@ -255,15 +269,15 @@
     }
     function filamentColor(value){var color=String(value||'');return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(color)&&color.slice(7).toLowerCase()!=='00'?color.slice(0,7):'#667487';}
     function renderPrinterDetails(){
-      var details=printerDetails;if(!details||activeView()!=='Diğer'){return;}var online=connection()&&!printerOffline()&&(!cfg.printer.power||get(cfg.printer.power).state==='on');
+      var details=printerDetails;if(!details||activeView()!=='Diğer'){return;}var online=printerDataReady();
       details.entries.forEach(function(e,index){var state=get(e.entity),value=Number(state.state),valid=online&&C.available(state)&&state.state!==''&&isFinite(value);if(index===0){if(state.attributes.unit_of_measurement==='h'){value*=60;}else if(state.attributes.unit_of_measurement==='s'){value/=60;}}var text='—';if(valid){if(index===0){if(printerJobActive()&&value>=0){text=value>0?Math.ceil(value)+' dk':'<1 dk';}}else{text=Math.round(value)+e.unit;}}setText(e.value,text);var readable=index===0&&online&&!printerJobActive()?'Baskı yok':text;e.item.setAttribute('aria-label',e.label+': '+readable);});
       setText(details.caption,online?'':'Son bilinen');details.heading.style.display=details.grouped&&online?'none':'';
-      var slots=(cfg.printer.filaments||[]).map(function(slot){var entry=get(slot.entity),a=entry.attributes;return {label:slot.label,group:slot.group||'Filamentler',type:a.type||entry.state,color:a.color,active:!!a.active,empty:!!a.empty,available:C.available(entry)};}),signature=JSON.stringify(slots);
+      var slots=(cfg.printer.filaments||[]).map(function(slot){var entry=get(slot.entity),a=entry.attributes;return {label:slot.label,group:slot.group||'Filamentler',type:a.type||entry.state,color:a.color,active:!!a.active,empty:!!a.empty,available:C.available(entry)};}),signature=JSON.stringify([online,slots]);
       if(details.signature===signature){return;}details.signature=signature;details.grid.innerHTML='';var count=0;
       var groups=[];slots.forEach(function(slot){if(groups.indexOf(slot.group)===-1){groups.push(slot.group);}});
       groups.forEach(function(name){var members=slots.filter(function(slot){return slot.group===name;}),target=details.grid;
         if(details.grouped){var section=node('div','pv2-filament-device'),title=node('div','pv2-filament-device-title',name),row=node('div','pv2-filament-device-slots');var weight=members.length===1?1.25:members.length;section.style.webkitFlex=String(weight);section.style.flex=String(weight);section.appendChild(title);section.appendChild(row);details.grid.appendChild(section);target=row;}
-        members.forEach(function(slot){var missingType=['','?','unknown','unavailable','empty','none','n/a','null','-','--'].indexOf(String(slot.type||'').toLowerCase())!==-1,noInfo=!slot.available||slot.empty||typeof slot.type!=='string'||missingType,active=slot.active&&!noInfo;count++;var chip=node('div','pv2-filament'+(active?' pv2-filament-active':'')+(noInfo?' pv2-filament-empty-slot':'')),swatch=node('span','pv2-filament-color'),material=node('span','pv2-filament-type',noInfo?'—':slot.type),label=node('span','pv2-filament-slot',slot.label);chip.style.width=(100/members.length)+'%';if(!noInfo){swatch.style.backgroundColor=filamentColor(slot.color);}swatch.setAttribute('aria-hidden','true');chip.title=name+' · '+slot.label+' · '+(noInfo?(slot.empty?'Boş':'Bilgi yok'):slot.type)+(active?' · Kullanılıyor':'');chip.setAttribute('aria-label',chip.title);chip.appendChild(swatch);chip.appendChild(material);chip.appendChild(label);target.appendChild(chip);});
+        members.forEach(function(slot){var missingType=['','?','unknown','unavailable','empty','none','n/a','null','-','--'].indexOf(String(slot.type||'').toLowerCase())!==-1,noInfo=!slot.available||slot.empty||typeof slot.type!=='string'||missingType,active=online&&slot.active&&!noInfo;count++;var chip=node('div','pv2-filament'+(active?' pv2-filament-active':'')+(noInfo?' pv2-filament-empty-slot':'')),swatch=node('span','pv2-filament-color'),material=node('span','pv2-filament-type',noInfo?'—':slot.type),label=node('span','pv2-filament-slot',slot.label);chip.style.width=(100/members.length)+'%';if(!noInfo){swatch.style.backgroundColor=filamentColor(slot.color);}swatch.setAttribute('aria-hidden','true');chip.title=name+' · '+slot.label+' · '+(noInfo?(slot.empty?'Boş':'Bilgi yok'):slot.type)+(active?' · Kullanılıyor':'');chip.setAttribute('aria-label',chip.title);chip.appendChild(swatch);chip.appendChild(material);chip.appendChild(label);target.appendChild(chip);});
       });
       if(!count){details.grid.appendChild(node('span','pv2-filament-empty','Filament bilgisi yok'));}
     }
@@ -281,8 +295,8 @@
     function printerOffline(){return !!cfg.printer&&(!C.available(get(cfg.printer.status))||get(cfg.printer.status).state==='offline');}
     function syncPrinterCamera(){
       var c=printerCamera;if(!c){return;}
-      if(activeView()!=='Diğer'||document.hidden||!c.enabled||!connection()||(cfg.printer.power&&get(cfg.printer.power).state!=='on')||printerOffline()||!C.available(get(cfg.printer.camera))){
-        stopPrinterCamera();cameraStatus(!c.enabled?'Görüntü duraklatıldı':!connection()?'Home Assistant bağlantısı yok':cfg.printer.power&&get(cfg.printer.power).state==='off'?'Yazıcı kapalı':printerOffline()?'Yazıcı çevrimdışı':'Kameradan görüntü bekleniyor…',activeView()==='Diğer'&&!document.hidden&&c.enabled&&connection()&&!(cfg.printer.power&&get(cfg.printer.power).state!=='on')&&!printerOffline());c.status.style.display='';return;
+      if(activeView()!=='Diğer'||document.hidden||!c.enabled||!connection()||printerShutdown||printerStartup||(cfg.printer.power&&get(cfg.printer.power).state!=='on')||printerOffline()||!C.available(get(cfg.printer.camera))){
+        stopPrinterCamera();cameraStatus(!c.enabled?'Görüntü duraklatıldı':!connection()?'Home Assistant bağlantısı yok':printerShutdown?'Yazıcı kapatılıyor…':printerStartup?'Yazıcı açılıyor…':cfg.printer.power&&get(cfg.printer.power).state==='off'?'Yazıcı kapalı':printerOffline()?'Yazıcı çevrimdışı':'Kameradan görüntü bekleniyor…',activeView()==='Diğer'&&!document.hidden&&c.enabled&&connection()&&!(cfg.printer.power&&get(cfg.printer.power).state!=='on')&&!printerOffline());c.status.style.display='';return;
       }
       if(c.active){return;}cameraStatus('Kamera görüntüsü yükleniyor',true);c.status.style.display='';c.active=true;c.generation++;requestPrinterFrame(c.generation);
     }
@@ -408,7 +422,7 @@
       else if(o.kind==='printer'){
         var printer=cfg.printer||{},state=get(printer.status),progress=get(printer.progress),remaining=get(printer.remaining),value=Number(progress.state),minutes=Number(remaining.state);
         var timeUnit=remaining.attributes.unit_of_measurement;if(timeUnit==='h'){minutes*=60;}else if(timeUnit==='s'){minutes/=60;}
-        var printerOnline=connection()&&C.available(state)&&state.state!=='offline'&&(!printer.power||get(printer.power).state!=='off');
+        var printerOnline=printerDataReady();
         var printing=printerOnline&&['running','printing','prepare','paused','pause','slicing'].indexOf(state.state)!==-1;
         var printerNames={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',printing:'Yazdırılıyor',prepare:'Hazırlanıyor',paused:'Duraklatıldı',pause:'Duraklatıldı',finish:'Tamamlandı',finished:'Tamamlandı',failed:'Baskı hatası'};
         label=printer.label||'3D Yazıcı';disabled=false;on=printing;
@@ -416,11 +430,11 @@
         var validProgress=C.available(progress)&&progress.state!==''&&isFinite(value)&&value>=0&&value<=100;
         if(printing&&validProgress&&!officeProfile){detail+=' · '+Math.round(value)+'%';}
         if(printing&&C.available(remaining)&&remaining.state!==''&&isFinite(minutes)&&minutes>0&&!(officeProfile&&cfg.agenda)){detail+=' · '+Math.ceil(minutes)+' dk';}
-        var bar=b.querySelector('.pv2-print-track');if(bar){bar.style.display=printing&&validProgress&&!(officeProfile&&cfg.agenda)?'block':'none';bar.firstChild.style.width=(validProgress?value:0)+'%';}
+        var bar=b.querySelector('.pv2-print-track');if(bar){bar.style.display=printing&&validProgress&&!(officeProfile&&cfg.agenda)?'block':'none';bar.firstChild.style.width=(printing&&validProgress?value:0)+'%';}
         var summaryPercentNode=b.querySelector('.pv2-summary-percent'),showPercent=officeProfile&&printing&&validProgress;
         if(summaryPercentNode){setText(summaryPercentNode,showPercent?Math.round(value)+'%':'');summaryPercentNode.style.display=showPercent?'block':'none';}
         b.classList.toggle('pv2-has-percent',showPercent);
-        var accent=!connection()?'offline':printerStartup?'starting':printer.power&&get(printer.power).state==='off'?'off':!printerOnline?'offline':['failed','error'].indexOf(state.state)!==-1?'error':['pause','paused'].indexOf(state.state)!==-1?'paused':['prepare','slicing'].indexOf(state.state)!==-1?'starting':['running','printing'].indexOf(state.state)!==-1?'printing':['finish','finished'].indexOf(state.state)!==-1?'done':state.state==='idle'?'ready':'offline';
+        var accent=!connection()?'offline':printerShutdown?'off':printerStartup?'starting':printer.power&&get(printer.power).state==='off'?'off':!printerOnline?'offline':['failed','error'].indexOf(state.state)!==-1?'error':['pause','paused'].indexOf(state.state)!==-1?'paused':['prepare','slicing'].indexOf(state.state)!==-1?'starting':['running','printing'].indexOf(state.state)!==-1?'printing':['finish','finished'].indexOf(state.state)!==-1?'done':state.state==='idle'?'ready':'offline';
         ['off','offline','ready','starting','printing','paused','error','done'].forEach(function(name){b.classList.toggle('pv2-printer-state-'+name,accent===name);});
         b.setAttribute('data-printer-progress',showPercent?String(Math.round(value)):'');
       }
@@ -428,11 +442,11 @@
         var printerState=get(o.entity),printerPower=cfg.printer&&cfg.printer.power?get(cfg.printer.power):null;
         var statusLabels={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',prepare:'Hazırlanıyor',pause:'Duraklatıldı',finish:'Tamamlandı',failed:'Baskı hatası'};
         detail=printerStatusLabel(printerState);
-        disabled=disabled||!printerPower||!C.available(printerPower);key='power:'+(cfg.printer&&cfg.printer.power);on=printerState.state==='running';
+        disabled=disabled||!printerPower||!C.available(printerPower);key='power:'+(cfg.printer&&cfg.printer.power);on=printerDataReady()&&printerJobActive();
       }
       else if(o.kind==='power'||o.kind==='sensor'){
-        var device=get(o.entity);unavailable=!C.available(device);if(o.kind==='sensor'&&cfg.printer&&o.entity!==cfg.printer.status&&get(cfg.printer.status).state==='offline'){unavailable=true;}key='power:'+o.entity;on=device.state==='on';
-        if(unavailable){detail='Veri yok';}else if(o.kind==='power'){detail=on?'Güç açık':'Güç kapalı';}else{var statusNames={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',pause:'Duraklatıldı',finish:'Tamamlandı',failed:'Hata'};detail=statusNames[device.state]||device.state;var unit=device.attributes.unit_of_measurement;if(unit){detail+=' '+({min:'dk',h:'sa',s:'sn'}[unit]||unit);}}
+        var device=get(o.entity);unavailable=!C.available(device);if(o.kind==='sensor'&&cfg.printer&&[cfg.printer.progress,cfg.printer.remaining,cfg.printer.nozzle,cfg.printer.bed].indexOf(o.entity)!==-1&&(!printerDataReady()||o.entity===cfg.printer.progress&&!printerJobActive())){unavailable=true;}key='power:'+o.entity;on=device.state==='on';
+        if(unavailable){detail=cfg.printer&&[cfg.printer.progress,cfg.printer.remaining,cfg.printer.nozzle,cfg.printer.bed].indexOf(o.entity)!==-1?'—':'Veri yok';}else if(o.kind==='power'){detail=on?'Güç açık':'Güç kapalı';}else{var statusNames={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',pause:'Duraklatıldı',finish:'Tamamlandı',failed:'Hata'};detail=statusNames[device.state]||device.state;var unit=device.attributes.unit_of_measurement;if(unit){detail+=' '+({min:'dk',h:'sa',s:'sn'}[unit]||unit);}}
         if(cfg.printer&&o.entity===cfg.printer.progress){var fill=b.querySelector('.pv2-card-progress-fill'),percent=Number(device.state),validPercent=!unavailable&&device.state!==''&&isFinite(percent)&&percent>=0&&percent<=100;if(fill){fill.style.width=(validPercent?percent:0)+'%';}if(validPercent){b.setAttribute('aria-valuenow',String(percent));}else{b.removeAttribute('aria-valuenow');}}
         disabled=disabled||unavailable||o.kind==='sensor';
       }
@@ -541,7 +555,7 @@
         var id=unique[index++], version=versions[id] || 0;
         window.goFetch('/api/proxy/api/states/'+encodeURIComponent(id)+'?panel_snapshot='+new Date().getTime(),function(error,entry){
           if(!error && generation===connectionGeneration && (versions[id]||0)===version && entry && entry.entity_id===id){
-            cache[id]={state:entry.state,attributes:entry.attributes || {}};scheduleRender();
+            cache[id]={state:entry.state,attributes:entry.attributes || {}};if(cfg.printer&&id===cfg.printer.power){syncPrinterPower(entry.state);}scheduleRender();
           }
           next();
         });
@@ -558,7 +572,7 @@
     // Old adjustable widgets otherwise throw on attribute-only/state-only updates.
     for(var eid in listeners){if(Object.prototype.hasOwnProperty.call(listeners,eid)){
       (function(id, callbacks){var old=callbacks.slice(0);callbacks.length=0;cache[id]={state:'unknown',attributes:{}};
-        callbacks.push(function(state,attrs){versions[id]=(versions[id]||0)+1;cache[id]=C.merge(get(id),state,attrs||{});if(printerStartup&&cfg.printer&&id===cfg.printer.status&&state!==undefined){checkPrinterStartup();}scheduleRender();if(snapshotNeeded){snapshotNeeded=false;var generation=connectionGeneration;setTimeout(function(){if(generation===connectionGeneration){reconcileSnapshot(generation);}},0);}for(var i=0;i<old.length;i++){if(old[i]){try{old[i](cache[id].state,cache[id].attributes);}catch(ignore){/* Isolate legacy widget failures. */}}}});
+        callbacks.push(function(state,attrs){versions[id]=(versions[id]||0)+1;cache[id]=C.merge(get(id),state,attrs||{});if(cfg.printer&&id===cfg.printer.power&&state!==undefined){syncPrinterPower(state);}if(printerStartup&&cfg.printer&&id===cfg.printer.status&&state!==undefined){checkPrinterStartup();}scheduleRender();if(snapshotNeeded){snapshotNeeded=false;var generation=connectionGeneration;setTimeout(function(){if(generation===connectionGeneration){reconcileSnapshot(generation);}},0);}for(var i=0;i<old.length;i++){if(old[i]){try{old[i](cache[id].state,cache[id].attributes);}catch(ignore){/* Isolate legacy widget failures. */}}}});
       })(eid,listeners[eid]);
     }}
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];

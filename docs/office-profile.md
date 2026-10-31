@@ -186,3 +186,19 @@ No native selection menu or service command is triggered by holding the card.
 Actual Samsung forecast card (cropped to exclude calendar titles and private configuration):
 
 ![Five-day forecast starting today](images/office-five-day-forecast.png)
+
+## Power-off and retained printer readings
+
+The configured printer power switch takes priority over cached print sensors.
+While a power-off command is awaiting confirmation the UI shows `Kapatılıyor…`
+and suppresses progress and live telemetry. Confirmed power-off shows `Kapalı`;
+progress/remaining time/temperatures become em dashes, progress fills clear and
+camera requests stop. A retained `running` state or percentage cannot keep the
+home percentage visible without confirmed power. A bounded shutdown state clears
+on failure or timeout; startup continues to wait for a fresh printer response.
+Filament metadata can remain labelled `Son bilinen`, but no slot is marked active
+while the printer is off, starting, shutting down or disconnected.
+
+Actual Samsung Printer view with the configured power switch off:
+
+![Printer off: no retained progress or live telemetry](images/office-printer-off.png)
