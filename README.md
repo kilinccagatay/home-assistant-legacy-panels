@@ -69,10 +69,10 @@ own. Never copy one device's root/display commands onto another model.
 
 ## Office preview
 
-![Office layout with synthetic meeting titles and printer values](docs/images/office-agenda-printer-demo.jpg)
+![Samsung office home screen, meeting title hidden](docs/images/samsung-office-home.png)
 
-This overview is a synthetic layout example; no real work meetings are published.
-The forecast below is cropped from the Samsung panel and contains no calendar data:
+This is a direct 1280 × 720 capture from the Samsung SM-J510FN. Only the meeting-title area was covered for privacy and marked “Toplantı adı gizlendi”; other displayed values and controls are unchanged. The original unredacted image is not published.
+The forecast below is cropped from the same device and contains no calendar data:
 
 ![Five-day forecast starting today](docs/images/office-five-day-forecast.png)
 
