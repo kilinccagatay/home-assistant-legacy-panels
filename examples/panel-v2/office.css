@@ -203,7 +203,7 @@
 .pv2-forecast-header h2 { margin:0; font:700 10px/14px Arial,sans-serif; letter-spacing:.6px; color:#c2d6ed; }
 .pv2-forecast-note { font:9px/12px Arial,sans-serif; color:#b8c8dc; text-align:right; }
 .pv2-forecast-days { height:calc(100% - 24px); display:-webkit-flex; display:flex; }
-.pv2-forecast-day { width:14.2857%; min-width:0; display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; -webkit-align-items:center; align-items:center; -webkit-justify-content:space-around; justify-content:space-around; border-radius:7px; }
+.pv2-forecast-day { width:14.2857%; min-width:0; display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; -webkit-align-items:center; align-items:center; -webkit-justify-content:space-between; justify-content:space-between; padding:6px 0; border-radius:7px; }
 .pv2-forecast-today { background:#354960; }
 .pv2-forecast-weekday { font:11px/14px Arial,sans-serif; color:#d4e0ef; }
 .pv2-forecast-icon { display:block; width:26px; height:26px; }

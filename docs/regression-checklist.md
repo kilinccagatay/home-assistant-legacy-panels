@@ -52,6 +52,7 @@ brightness setting of zero, or a desktop preview alone is not acceptance.
 | U05 | Each interactive control sounds once immediately on finger-down when sound is enabled; disabled/blank areas stay silent. Sound setting works and persists. No extra sound after release. |
 | U06 | Tap triggers once, long press opens settings once without also toggling the lamp. Fast/normal/long timing works without a second tap. Dragging/cancelling a gesture does not trigger a stray action. |
 | U07 | Closing dialogs uses the X icon, clears selection/focus outlines, makes feedback sound and restores touch. No misleading “Gönderiliyor” label or sound control inside a lamp dialog. |
+| U08 | Selected highlights, cards and buttons use consistent spacing. Compare top/bottom and left/right insets, mixed-size text/icon alignment and adjacent selected/unselected states at the actual device viewport. Record intentional optical offsets; do not hide uneven padding behind distributed flex spacing. |
 
 ## Home Assistant controls
 
