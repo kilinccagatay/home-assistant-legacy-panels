@@ -71,6 +71,21 @@
     var start = Date.parse(e.attributes.last_triggered || '');
     return isFinite(start) ? Math.max(0, Math.min(60, Math.ceil((start + 60000 - now) / 1000))) : null;
   };
+  // Local calendar days avoid duplicated columns across daylight saving changes.
+  api.forecastDays = function (forecast, now, count) {
+    var rows=Object.prototype.toString.call(forecast)==='[object Array]'?forecast:[],result=[],date=new Date(now);
+    function key(d){return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();}
+    function value(v){return v!==null&&v!==undefined&&v!==''&&isFinite(Number(v))?Math.round(Number(v)):null;}
+    date.setHours(12,0,0,0);
+    count=count===5?5:7;
+    for(var i=0;i<count;i++){
+      var target=key(date),match=null;
+      for(var j=0;j<rows.length;j++){var row=rows[j];if(row&&key(new Date(row.datetime))===target){match=row;break;}}
+      result.push({day:date.getDay(),date:date.getTime(),condition:match&&typeof match.condition==='string'?match.condition:'',high:match?value(match.temperature):null,low:match?value(match.templow):null});
+      date.setDate(date.getDate()+1);
+    }
+    return result;
+  };
   api.bindPress = function (el, shortPress, longPress, scheduler, holdDelay, pressStart) {
     var timer = null, held = false, startX = 0, startY = 0, touchAt = 0, started = false, suppressClickUntil = 0;
     scheduler = scheduler || {set: function (fn, ms) { return setTimeout(fn, ms); }, clear: function (id) { clearTimeout(id); }, now: function () { return new Date().getTime(); }};

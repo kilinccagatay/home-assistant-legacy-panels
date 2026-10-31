@@ -14,3 +14,14 @@ alone cannot prove physical behavior. Never commit private configuration or
 unrelated working-tree changes. Documentation-only edits require link/diff checks,
 not household actuation or a new hardware acceptance run; they must not claim a
 new runtime validation.
+
+## Required visual spacing review
+
+For every UI edit, inspect spacing as part of acceptance, not as optional polish.
+Use the existing 4/8/12/16 px rhythm and equal top/bottom and left/right insets for
+selected indicators, cards, chips and buttons unless intentional asymmetry is
+documented. Keep explicit inner padding; do not rely on distributed flex space
+to imply balanced padding for mixed font sizes. Check both line-box bounds and
+optical text/icon alignment, selected and unselected states, and adjacent cards.
+Verify on the installed device at its actual viewport before claiming visual
+acceptance. Missing screenshots or physical checks remain PENDING.

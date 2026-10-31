@@ -2,10 +2,20 @@
 (function () {
   function ready() {
     var cfg = window.PANEL_V2_CONFIG, C = window.PanelV2Core;
+    var officeProfile=!!cfg&&cfg.profile==='office';
+    var preferencePrefix=officeProfile?'panel-office-':'panel-v2-';
     var home = document.getElementById('screen-Ana');
     if (!cfg || !C || !home || document.getElementById('panel-v2')) { return; }
     var cache = {}, versions = {}, cards = [], busy = {}, listeners = window.entityListeners || {};
+    var printerCamera=null,powerDialogState=null,printerStartup=null,printerDetails=null;
     var snapshotNeeded = false, connectionGeneration = 0, renderQueued=false,lastConnection=null;
+    function navigateScreen(name){
+      var screens=document.querySelectorAll('.screen');
+      for(var i=0;i<screens.length;i++){if(screens[i].id==='screen-'+name){
+        if(typeof window.navigateTo==='function'){window.navigateTo(i);}else{window.location.hash='#screen-'+encodeURIComponent(name);}
+        return;
+      }}
+    }
     function activeView(){try{return decodeURIComponent(window.location.hash.replace(/^#screen-/,''))||'Ana';}catch(ignore){return 'Ana';}}
     function scheduleRender(){if(renderQueued){return;}renderQueued=true;setTimeout(function(){renderQueued=false;render();},16);}
     var modalIds = [], modalControls=[],dialogCache={},modalRevision=0,focusBeforeDialog = null, noticeTimer, modal, keyboardInput = false;
@@ -20,7 +30,7 @@
     function soundStatus(text){if(audioStatus){setText(audioStatus,text);}}
     audio.addEventListener('playing',function(){soundStatus('Ses oynatıldı. Duyulmuyorsa medya sesini kontrol edin.');},false);
     audio.addEventListener('error',function(){soundStatus('Ses dosyası oynatılamadı. Hata: '+(audio.error?audio.error.code:'bilinmiyor'));},false);
-    try{var savedSound=localStorage.getItem('panel-v2-click-sound');if(savedSound==='on'||savedSound==='off'){soundEnabled=savedSound==='on';}var savedDelay=Number(localStorage.getItem('panel-v2-hold-ms'));if(savedDelay===450){savedDelay=250;}else if(savedDelay===650){savedDelay=500;}else if(savedDelay===900){savedDelay=800;}if([250,500,800].indexOf(savedDelay)!==-1){holdDelay=savedDelay;}}catch(ignore){}
+    try{var savedSound=localStorage.getItem(preferencePrefix+'click-sound');if(savedSound==='on'||savedSound==='off'){soundEnabled=savedSound==='on';}var savedDelay=Number(localStorage.getItem(preferencePrefix+'hold-ms'));if(savedDelay===450){savedDelay=250;}else if(savedDelay===650){savedDelay=500;}else if(savedDelay===900){savedDelay=800;}if([250,500,800].indexOf(savedDelay)!==-1){holdDelay=savedDelay;}}catch(ignore){}
     // Decode once; a new lightweight buffer source starts directly on touch-down.
     // The proven HTML media path remains a fallback for older/unsupported engines.
     var fastContext=null,fastBuffer=null,fastFailed=false;
@@ -41,6 +51,15 @@
     document.addEventListener('mouseup',function(){lastPointerSoundAt=new Date().getTime();},true);
     document.addEventListener('click',function(ev){if(ev.isTrusted===false){return;}var el=feedbackControl(ev.target);if(!el){return;}if(el===lastPointerControl&&new Date().getTime()-lastPointerSoundAt<1000){return;}clickSound(el.classList.contains('pv2-sound-test'));},true);
     var paths = {
+      pause:'M6 4h4v16H6V4Zm8 0h4v16h-4V4Z',
+      play:'M8 4l12 8-12 8V4Z',
+      droplet:'M12 3C9 7 5 11 5 15a7 7 0 0 0 14 0c0-4-4-8-7-12Z',
+      home:'M3 11l9-8 9 8M5 10v11h14V10M10 21v-7h4v7',
+      clock:'M12 7v5l3 2M21 12a9 9 0 1 0-18 0 9 9 0 0 0 18 0',
+      nozzle:'M6 3h12v8l-4 5v4h-4v-4l-4-5V3Zm0 5h12',
+      bed:'M3 14h18v6H3v-6Zm3-9v5m6-7v7m6-5v5',
+      plug:'M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0V8Zm6 9v4',
+      printer:'M6 9V3h12v6M6 17H3V9h18v8h-3M6 14h12v7H6Zm11-3h1',
       settings:'M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6M8 15v6',
       bulb:'M9 18h6m-5 3h4M8 13a6 6 0 1 1 8 0c-1 1-1 2-1 3H9c0-1 0-2-1-3Z',
       kitchen:'M4 3v6m3-6v6m3-6v6M4 7h6M7 9v12M17 3v18m0-18c4 3 4 9 0 9',
@@ -69,10 +88,43 @@
         request.then(function(result){clearTimeout(timeout);resolve(result);},function(error){clearTimeout(timeout);reject(error);});
       });
     }
+    function stopPrinterStartup(){if(!printerStartup){return;}clearTimeout(printerStartup.timer);clearTimeout(printerStartup.expiry);printerStartup=null;scheduleRender();}
+    function checkPrinterStartup(){
+      var pending=printerStartup;if(!pending||pending.inFlight||!connection()){return;}pending.inFlight=true;
+      window.goFetch('/api/proxy/api/states/'+encodeURIComponent(cfg.printer.status)+'?panel_startup='+new Date().getTime(),function(error,entry){
+        if(printerStartup!==pending){return;}pending.inFlight=false;
+        var fresh=entry&&Date.parse(entry.last_updated||entry.last_changed||'')>=pending.since;
+        if(!error&&fresh&&C.available(entry)&&['idle','running','printing','prepare','pause','paused','slicing','finish'].indexOf(entry.state)!==-1){cache[cfg.printer.status]={state:entry.state,attributes:entry.attributes||{}};stopPrinterStartup();return;}
+        clearTimeout(pending.timer);pending.timer=setTimeout(checkPrinterStartup,2000);
+      });
+    }
+    function startPrinterStartup(){stopPrinterStartup();var pending={since:new Date().getTime(),inFlight:false,timer:null,expiry:null};printerStartup=pending;pending.timer=setTimeout(checkPrinterStartup,500);pending.expiry=setTimeout(function(){if(printerStartup===pending){stopPrinterStartup();}},120000);scheduleRender();}
+    function printerStatusLabel(state){
+      if(printerStartup){return 'Açılıyor…';}
+      if(cfg.printer&&cfg.printer.power&&get(cfg.printer.power).state==='off'){return 'Kapalı';}
+      var names={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',printing:'Yazdırılıyor',prepare:'Hazırlanıyor',pause:'Duraklatıldı',paused:'Duraklatıldı',slicing:'Hazırlanıyor',finish:'Tamamlandı',finished:'Tamamlandı',failed:'Baskı hatası'};
+      return names[state.state]||'Veri bekleniyor';
+    }
+    function readPowerState(callback){
+      var id=cfg.printer&&cfg.printer.power;if(!id||!connection()){if(callback){callback(new Error('Bağlantı yok'));}return;}
+      var version=versions[id]||0;
+      window.goFetch('/api/proxy/api/states/'+encodeURIComponent(id)+'?panel_power='+new Date().getTime(),function(error,entry){
+        if(!error&&entry&&entry.entity_id===id){if((versions[id]||0)===version){cache[id]={state:entry.state,attributes:entry.attributes||{}};if(printerStartup&&entry.state==='off'&&new Date().getTime()-printerStartup.since>2500){stopPrinterStartup();}scheduleRender();}if(callback){callback(null,get(id));}}
+        else if(callback){callback(error||new Error('Durum okunamadı'));}
+      });
+    }
+    var powerCheckPending=false;
+    function printerPowerAction(){
+      if(powerCheckPending){return;}powerCheckPending=true;
+      readPowerState(function(error,state){powerCheckPending=false;if(error||!C.available(state)){notice('Yazıcı prizinin durumu doğrulanamadı.');return;}
+        if(state.state==='off'){startPrinterStartup();perform('power:'+cfg.printer.power,'switch','turn_on',cfg.printer.power);}else if(state.state==='on'){openPowerDialog({label:'Yazıcıyı kapat?',entity:cfg.printer.power,printer:true});}
+      });
+    }
     function perform(key, domain, service, ids, data, onSuccess) {
       if (busy[key]) { return; }
       busy[key]=true; scheduleRender();
-      call(domain,service,ids,data).then(function(){busy[key]=false;scheduleRender();if(onSuccess){onSuccess();}},function(){busy[key]=false;scheduleRender();notice('İşlem gerçekleştirilemedi. Bağlantıyı kontrol edin.');});
+      if(domain==='switch'&&cfg.printer&&ids===cfg.printer.power){setTimeout(function(){readPowerState();},350);setTimeout(function(){readPowerState();},1500);setTimeout(function(){readPowerState();},3500);}
+      call(domain,service,ids,data).then(function(){busy[key]=false;scheduleRender();if(onSuccess){onSuccess();}},function(){busy[key]=false;if(domain==='switch'&&cfg.printer&&ids===cfg.printer.power&&service==='turn_on'){stopPrinterStartup();}scheduleRender();notice('İşlem gerçekleştirilemedi. Bağlantıyı kontrol edin.');});
     }
     function supported(ids) { return ids.filter(function(id){return C.available(get(id));}); }
     function toggle(ids) {
@@ -87,51 +139,159 @@
       Promise.all(targets.map(function(t){return call('light','turn_on',t.id,t.data).then(function(){return true;},function(){return false;});})).then(function(results){busy[key]=false;scheduleRender();if(results.some(function(ok){return !ok;})){notice('Bazı lambalar açılamadı. Bağlantıyı kontrol edin.');}});
     }
     function addCard(parent, options, legacy) {
-      var b=node('button','pv2-card'+(options.action?' pv2-action':'')+(legacy?' pv2-legacy-light':'')); b.type='button';
-      b.innerHTML=icon(options.icon);
+      var b=node('button','pv2-card'+(options.action?' pv2-action':'')+(legacy?' pv2-legacy-light':'')); b.type='button';if(options.kind==='sensor'){b.classList.add('pv2-readonly');}if(options.kind==='sensor'&&cfg.printer&&options.entity===cfg.printer.progress){b.classList.add('pv2-print-progress-card');var progressFill=node('span','pv2-card-progress-fill');progressFill.setAttribute('aria-hidden','true');b.appendChild(progressFill);b.setAttribute('role','progressbar');b.setAttribute('aria-valuemin','0');b.setAttribute('aria-valuemax','100');}
+      if(b.classList.contains('pv2-print-progress-card')){var cardIcon=node('span','pv2-card-icon');cardIcon.innerHTML=icon(options.icon);b.appendChild(cardIcon);}else{b.innerHTML=icon(options.icon);}
       var text=node('span','pv2-card-text'), label=node('span','pv2-card-label',options.label), state=node('span','pv2-card-state','Yükleniyor…');
-      text.appendChild(label);text.appendChild(state);b.appendChild(text);parent.appendChild(b);
-      var item={button:b,label:label,status:state,options:options,icon:b.querySelector('svg'),view:parent.getAttribute('data-pv2-screen')};cards.push(item);
+      text.appendChild(label);text.appendChild(state);b.appendChild(text);if(options.kind==='printer'){b.classList.add('pv2-printer-summary');var track=node('span','pv2-print-track'),fill=node('span','pv2-print-fill');track.setAttribute('aria-hidden','true');track.appendChild(fill);text.appendChild(track);var summaryPercent=node('span','pv2-summary-percent');summaryPercent.setAttribute('aria-hidden','true');b.appendChild(summaryPercent);}parent.appendChild(b);
+      var item={tapTimer:null,button:b,label:label,status:state,options:options,icon:b.querySelector('svg'),view:parent.getAttribute('data-pv2-screen')};cards.push(item);
+      function printerPress(){if(!cfg.printer||!cfg.printer.power){if(options.kind==='printer'){navigateScreen(options.destination||'Diğer');}return;}if(item.tapTimer!==null){clearTimeout(item.tapTimer);item.tapTimer=null;printerPowerAction();return;}item.tapTimer=setTimeout(function(){item.tapTimer=null;if(options.kind==='printer'){navigateScreen(options.destination||'Diğer');}},350);}
       C.bindPress(b,function(){
         if (b.disabled) { return; }
         if (options.kind==='robot') { var robot=C.robot(get(cfg.vacuum)); if(robot.service){perform('robot','vacuum',robot.service,cfg.vacuum);} }
         else if(options.kind==='alloff'){toggleCountdown();}
+        else if(options.kind==='roomoff'){var targets=supported(options.ids);if(targets.length){perform(options.ids.join(','),'light','turn_off',targets);}}
+        else if(options.kind==='printer'||options.kind==='printer-status'){printerPress();}
+        else if(options.kind==='navigate'){navigateScreen(options.destination||'Diğer');}
+        else if(options.kind==='power'){if(options.confirmOffOnly&&get(options.entity).state==='off'){perform('power:'+options.entity,'switch','turn_on',options.entity);}else{openPowerDialog(options);}}
         else if(options.kind&&options.kind.indexOf('vacuum-')===0){var action=C.robotControl(get(cfg.vacuum),options.kind.slice(7));if(action.service){perform('vacuum','vacuum',action.service,cfg.vacuum);}}
         else{toggle(options.ids);}
       },options.ids?function(){openDialog(options.label,options.ids);}:null,null,function(){return holdDelay;});
       return item;
     }
-    var navLabels=document.querySelectorAll('.navbar-label');for(var ni=0;ni<navLabels.length;ni++){if(navLabels[ni].textContent.trim().toLowerCase()==='ana'){setText(navLabels[ni],'EVİM');}}
-    document.body.classList.add('panel-v2');
+    var navLabels=document.querySelectorAll('.navbar-label');for(var ni=0;ni<navLabels.length;ni++){if(navLabels[ni].textContent.trim().toLowerCase()==='ana'){setText(navLabels[ni],officeProfile?'ODAM':'EVİM');}else if(officeProfile&&navLabels[ni].textContent.trim().toLowerCase()==='diğer'){setText(navLabels[ni],'YAZICI');}}
+    document.body.classList.add('panel-v2');if(officeProfile){document.body.classList.add('panel-v2-office');if(cfg.nativeBatteryBadge===false){document.body.classList.add('pv2-no-battery');}}
     var views=[],robotStatus=null;
     function makeView(name,title){
       var screen=document.getElementById('screen-'+name);if(!screen){return null;}screen.classList.add('pv2-screen');
       var root=node('div','pv2-panel');root.id=name==='Ana'?'panel-v2':'panel-v2-'+name;
       var top=node('div','pv2-top');top.appendChild(node('span','pv2-brand',title));
+      var indoorValue=null,humidityValue=null;
       var status=node('span','pv2-connection','Bağlanıyor');top.appendChild(status);root.appendChild(top);
       var body=node('div','pv2-body'),overview=node('div','pv2-overview'),controls=node('div','pv2-controls');controls.setAttribute('data-pv2-screen',name);
       var clock=node('div','pv2-clock'),date=node('div','pv2-date'),weekday=node('div','pv2-date');overview.appendChild(clock);overview.appendChild(date);overview.appendChild(weekday);
-      var weather=node('div','pv2-weather'),weatherMain=node('div','pv2-weather-main'),weatherIcon=node('span'),temperature=node('span','pv2-temperature','--°'),condition=node('div','pv2-condition','Yükleniyor…');weatherMain.appendChild(weatherIcon);weatherMain.appendChild(temperature);weather.appendChild(weatherMain);weather.appendChild(condition);overview.appendChild(weather);
+      var weather=node('div','pv2-weather'),weatherMain=node('div','pv2-weather-main'),weatherIcon=node('span'),temperature=node('span','pv2-temperature','--°'),condition=node('div','pv2-condition','Yükleniyor…');
+      if(cfg.indoorTemperature){
+        weather.classList.add('pv2-weather-pair');weatherIcon.className='pv2-weather-reading-icon';
+        var outside=node('div','pv2-weather-reading'),inside=node('div','pv2-weather-reading pv2-indoor-reading'),house=node('span','pv2-weather-reading-icon');house.innerHTML=icon('home');indoorValue=node('span','pv2-temperature pv2-indoor-temperature','—°');inside.setAttribute('role','group');inside.title=cfg.indoorLabel||'Ev içi sıcaklık';outside.setAttribute('role','group');outside.setAttribute('aria-label','Dışarı hava durumu');outside.appendChild(weatherIcon);outside.appendChild(temperature);outside.appendChild(condition);inside.appendChild(house);inside.appendChild(indoorValue);
+        if(cfg.indoorHumidity){var caption=node('div','pv2-condition pv2-indoor-caption'),humidity=node('span','pv2-indoor-humidity'),humidityIcon=node('span');humidityIcon.innerHTML=icon('droplet');humidityValue=node('span','pv2-indoor-humidity-value','—%');humidity.appendChild(humidityIcon);humidity.appendChild(humidityValue);humidity.title='Ev içi nem';caption.appendChild(node('span','pv2-indoor-caption-label','Ev içi'));caption.appendChild(humidity);inside.appendChild(caption);}else{inside.appendChild(node('div','pv2-condition','Ev içi'));}
+        weatherMain.appendChild(outside);weatherMain.appendChild(inside);
+      }else{weatherMain.appendChild(weatherIcon);weatherMain.appendChild(temperature);}
+      weather.appendChild(weatherMain);if(!cfg.indoorTemperature){weather.appendChild(condition);}overview.appendChild(weather);
       var meeting=node('div','pv2-meeting');meeting.innerHTML='<span class="pv2-meeting-dot"></span>Toplantı';overview.appendChild(meeting);
       var trigger=node('button','pv2-settings-trigger');trigger.type='button';trigger.innerHTML=icon('settings');trigger.setAttribute('aria-label','Panel Ayarları');trigger.title='Panel Ayarları';trigger.addEventListener('click',function(){openPanelSettings();},false);overview.appendChild(trigger);
       body.appendChild(overview);body.appendChild(controls);root.appendChild(body);screen.appendChild(root);
-      views.push({name:name,status:status,clock:clock,date:date,weekday:weekday,temperature:temperature,condition:condition,weatherIcon:weatherIcon,previousWeatherIcon:'',meeting:meeting});return controls;
+      views.push({name:name,status:status,indoor:indoorValue,humidity:humidityValue,clock:clock,date:date,weekday:weekday,temperature:temperature,condition:condition,weatherIcon:weatherIcon,previousWeatherIcon:'',meeting:meeting});return controls;
     }
-    var controls=makeView('Ana','EVİM');
+    var agendaBox=null,agendaHeading=null,agendaList=null,agendaSignature=null;
+    var forecastBox=null,forecastList=null,forecastNote=null,forecastRows=[],forecastAt=0,forecastAttempt=0,forecastPending=false,forecastSignature='';
+    var room=cfg.roomLights||{};
+    var controls=makeView('Ana',officeProfile?'ÇALIŞMA ODAM':'EVİM');
+    var corridorIds=[cfg.lights.front,cfg.lights.rear];if(room.entrance){corridorIds.push(room.entrance);}
+    if(officeProfile){
+      controls.classList.add('pv2-office-home');
+      if(cfg.agenda){
+        controls.classList.add('pv2-with-agenda');
+        agendaBox=node('section','pv2-agenda');agendaBox.setAttribute('aria-label','İş takvimi');
+        // This is read-only kiosk content. Legacy Crosswalk can crash in its
+        // native text-selection menu after a touch hold; do not enter that path.
+        ['touchstart','selectstart','contextmenu'].forEach(function(name){agendaBox.addEventListener(name,function(ev){ev.preventDefault();},false);});
+        agendaHeading=node('h2','pv2-agenda-heading','Toplantılar');agendaList=node('div','pv2-agenda-list');
+        agendaBox.appendChild(agendaHeading);agendaBox.appendChild(agendaList);controls.appendChild(agendaBox);
+      }
+      if(cfg.weeklyForecast===true&&cfg.agenda){
+        forecastBox=node('section','pv2-forecast');forecastBox.setAttribute('aria-label',(cfg.forecastDays===5?'Beş':'Yedi')+' günlük hava tahmini');
+        var forecastHeader=node('div','pv2-forecast-header');forecastHeader.appendChild(node('h2','',(cfg.forecastDays===5?'5':'7')+' GÜNLÜK HAVA'));
+        forecastNote=node('span','pv2-forecast-note','Yükleniyor…');forecastHeader.appendChild(forecastNote);
+        forecastList=node('div','pv2-forecast-days');forecastBox.appendChild(forecastHeader);forecastBox.appendChild(forecastList);controls.appendChild(forecastBox);
+        ['touchstart','selectstart','contextmenu'].forEach(function(name){forecastBox.addEventListener(name,function(ev){ev.preventDefault();},false);});
+      }
+      lightControl(controls,cfg.lights.office,'Oda Lambası','desk');
+      if(cfg.robotEnabled!==false){
+        addCard(controls,{label:'Ev Işıkları',icon:'bulb',kind:'navigate',destination:'Işıklar'});
+        addCard(controls,{label:'Evi Temizle',icon:'robot',kind:'robot',action:true});
+      }else{controls.classList.add('pv2-four');controls.classList.add('pv2-office-compact-home');}
+      if(cfg.printer){addCard(controls,{label:cfg.printer.label||'3D Yazıcı',icon:'printer',kind:'printer',destination:'Diğer'});}else{addCard(controls,{label:'Ev Işıkları',icon:'bulb',kind:'navigate',destination:'Işıklar'});}
+    }else{
     addCard(controls,{label:'Mutfak',ids:[cfg.lights.counter,cfg.lights.sink],icon:'kitchen'});
     addCard(controls,{label:'Salon',ids:[cfg.lights.living],icon:'bulb'});
     addCard(controls,{label:'Yemek Masası',ids:[cfg.lights.dining],icon:'bulb'});
-    var corridorIds=[cfg.lights.front,cfg.lights.rear];if(cfg.roomLights&&cfg.roomLights.entrance){corridorIds.push(cfg.roomLights.entrance);}
+
     addCard(controls,{label:'Koridor',ids:corridorIds,icon:'corridor'});
     addCard(controls,{label:'Çalışma Odası',ids:[cfg.lights.office],icon:'desk'});
     addCard(controls,{label:'Yatak Odası',ids:[cfg.lights.bedroom],icon:'bed'});
     addCard(controls,{label:'Evi Temizle',icon:'robot',kind:'robot',action:true});
     addCard(controls,{label:'Tüm Işıkları Kapat',icon:'moon',kind:'alloff',action:true});
+    }
     function lightControl(parent,id,label,iconName){if(parent&&id){addCard(parent,{label:label,ids:[id],icon:iconName||'bulb'});}}
     var kitchen=makeView('Mutfak','MUTFAK');if(kitchen){kitchen.classList.add('pv2-three');lightControl(kitchen,cfg.lights.counter,'Tezgâh');lightControl(kitchen,cfg.lights.sink,'Lavabo');lightControl(kitchen,cfg.lights.dining,'Yemek Masası');}
-    var room=cfg.roomLights||{},entrance=makeView('Giriş','GİRİŞ');if(entrance){entrance.classList.add('pv2-three');lightControl(entrance,room.entrance,'Antre','corridor');lightControl(entrance,cfg.lights.front,'Koridor Ön','corridor');lightControl(entrance,cfg.lights.rear,'Koridor Arka','corridor');}
+    var entrance=makeView('Giriş','GİRİŞ');if(entrance){entrance.classList.add('pv2-three');lightControl(entrance,room.entrance,'Antre','corridor');lightControl(entrance,cfg.lights.front,'Koridor Ön','corridor');lightControl(entrance,cfg.lights.rear,'Koridor Arka','corridor');}
     var rooms=makeView('Odalar','ODALAR');if(rooms){rooms.classList.add('pv2-four');lightControl(rooms,cfg.lights.living,'Salon');lightControl(rooms,cfg.lights.office,'Çalışma Odası','desk');lightControl(rooms,cfg.lights.bedroom,'Yatak Odası','bed');lightControl(rooms,room.accent,cfg.labels&&cfg.labels[room.accent]||'Ek Aydınlatma');}
     var robotControls=makeView('Robot','ROBOT');if(robotControls){robotControls.classList.add('pv2-robot-controls');var summary=node('div','pv2-robot-summary');summary.innerHTML=icon('robot');robotStatus=node('span','','Yükleniyor…');summary.appendChild(robotStatus);robotControls.appendChild(summary);['start','pause','dock'].forEach(function(kind){addCard(robotControls,{label:'Robot',icon:'robot',kind:'vacuum-'+kind,action:true});});}
+    if(officeProfile){
+      var house=makeView('Işıklar','EV IŞIKLARI');
+      if(house){
+        house.classList.add('pv2-office-house');
+        var groups=node('div','pv2-office-groups');groups.setAttribute('role','tablist');groups.setAttribute('aria-label','Aydınlatma bölümü');house.appendChild(groups);
+        var sections=[];
+        function lightSection(title,entries){
+          var tab=node('button','pv2-office-group',title),grid=node('div','pv2-office-grid');tab.type='button';tab.setAttribute('role','tab');tab.setAttribute('aria-selected',sections.length?'false':'true');grid.setAttribute('role','tabpanel');grid.setAttribute('aria-label',title);grid.setAttribute('data-pv2-screen','Işıklar');grid.hidden=sections.length>0;grid.style.display=sections.length?'none':'';
+          entries.forEach(function(e){lightControl(grid,e[0],e[1],e[2]);});groups.appendChild(tab);house.appendChild(grid);sections.push({tab:tab,grid:grid});
+          tab.addEventListener('click',function(){sections.forEach(function(s){var selected=s.tab===tab;s.tab.setAttribute('aria-selected',selected?'true':'false');s.grid.hidden=!selected;s.grid.style.display=selected?'':'none';});scheduleRender();},false);
+        }
+        lightSection('Odalar',[[cfg.lights.living,'Salon'],[cfg.lights.bedroom,'Yatak Odası','bed'],[cfg.lights.office,'Çalışma Odası','desk'],[room.accent,'Iris']]);
+        lightSection('Mutfak',[[cfg.lights.counter,'Tezgâh','kitchen'],[cfg.lights.sink,'Lavabo','kitchen'],[cfg.lights.dining,'Yemek Masası']]);
+        lightSection('Giriş',[[room.entrance,'Antre','corridor'],[cfg.lights.front,'Koridor Ön','corridor'],[cfg.lights.rear,'Koridor Arka','corridor']]);
+        lightSection('Toplu',[]);var bulk=sections[sections.length-1].grid;bulk.classList.add('pv2-two');
+        addCard(bulk,{label:'Odayı Kapat',ids:[cfg.lights.office,room.accent].filter(Boolean),kind:'roomoff',icon:'moon',action:true});
+        addCard(bulk,{label:'Tüm Işıkları Kapat',kind:'alloff',icon:'moon',action:true});
+      }
+      var other=makeView('Diğer','YAZICI');if(other){other.classList.add('pv2-four');other.parentNode.parentNode.classList.add('pv2-printer-page');if(cfg.printer&&cfg.printer.camera){buildPrinterCamera(other);}(cfg.otherControls||[]).forEach(function(o){if(cfg.printer&&cfg.printer.nozzle&&cfg.printer.bed&&(o.entity===cfg.printer.remaining||o.entity===cfg.printer.nozzle)){return;}addCard(other,{label:o.label,entity:o.entity,kind:cfg.printer&&o.entity===cfg.printer.status?'printer-status':o.kind,icon:o.icon||'bulb',action:o.kind==='power'});});if(cfg.printer&&cfg.printer.nozzle&&cfg.printer.bed){buildPrinterDetails(other);}}
+    }
+    function buildPrinterDetails(parent){
+      parent.classList.add('pv2-printer-detail-layout');var telemetry=node('div','pv2-printer-telemetry');
+      var entries=[{entity:cfg.printer.remaining,label:'Kalan süre',icon:'clock',unit:' dk'},{entity:cfg.printer.nozzle,label:'Nozul sıcaklığı',icon:'nozzle',unit:'°'},{entity:cfg.printer.bed,label:'Tabla sıcaklığı',icon:'bed',unit:'°'}];
+      entries.forEach(function(e){var item=node('div','pv2-printer-reading'),symbol=node('span','pv2-printer-reading-icon'+(e.icon==='bed'?' pv2-bed-reading-icon':'')),value=node('span','pv2-printer-reading-value','—');symbol.setAttribute('aria-hidden','true');symbol.innerHTML=e.icon==='bed'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h18v6H3z M6 11c-2-3 2-4 0-7 M12 11c-2-3 2-4 0-7 M18 11c-2-3 2-4 0-7"/></svg>':icon(e.icon);item.appendChild(symbol);item.appendChild(value);item.title=e.label;telemetry.appendChild(item);e.value=value;e.item=item;});parent.appendChild(telemetry);
+      var panel=node('section','pv2-printer-filaments'),heading=node('div','pv2-filament-heading'),caption=node('span'),grid=node('div','pv2-filament-grid');var grouped=(cfg.printer.filaments||[]).some(function(slot){return !!slot.group;});if(grouped){panel.classList.add('pv2-filament-grouped');}heading.appendChild(node('span','',grouped?'':'Filamentler'));heading.appendChild(caption);panel.appendChild(heading);panel.appendChild(grid);parent.appendChild(panel);printerDetails={entries:entries,caption:caption,heading:heading,grouped:grouped,grid:grid,signature:''};
+    }
+    function filamentColor(value){var color=String(value||'');return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(color)&&color.slice(7).toLowerCase()!=='00'?color.slice(0,7):'#667487';}
+    function renderPrinterDetails(){
+      var details=printerDetails;if(!details||activeView()!=='Diğer'){return;}var online=connection()&&!printerOffline()&&(!cfg.printer.power||get(cfg.printer.power).state==='on');
+      details.entries.forEach(function(e,index){var state=get(e.entity),value=Number(state.state),valid=online&&C.available(state)&&state.state!==''&&isFinite(value);if(index===0){if(state.attributes.unit_of_measurement==='h'){value*=60;}else if(state.attributes.unit_of_measurement==='s'){value/=60;}}var text='—';if(valid){if(index===0){if(printerJobActive()&&value>=0){text=value>0?Math.ceil(value)+' dk':'<1 dk';}}else{text=Math.round(value)+e.unit;}}setText(e.value,text);var readable=index===0&&online&&!printerJobActive()?'Baskı yok':text;e.item.setAttribute('aria-label',e.label+': '+readable);});
+      setText(details.caption,online?'':'Son bilinen');details.heading.style.display=details.grouped&&online?'none':'';
+      var slots=(cfg.printer.filaments||[]).map(function(slot){var entry=get(slot.entity),a=entry.attributes;return {label:slot.label,group:slot.group||'Filamentler',type:a.type||entry.state,color:a.color,active:!!a.active,empty:!!a.empty,available:C.available(entry)};}),signature=JSON.stringify(slots);
+      if(details.signature===signature){return;}details.signature=signature;details.grid.innerHTML='';var count=0;
+      var groups=[];slots.forEach(function(slot){if(groups.indexOf(slot.group)===-1){groups.push(slot.group);}});
+      groups.forEach(function(name){var members=slots.filter(function(slot){return slot.group===name;}),target=details.grid;
+        if(details.grouped){var section=node('div','pv2-filament-device'),title=node('div','pv2-filament-device-title',name),row=node('div','pv2-filament-device-slots');var weight=members.length===1?1.25:members.length;section.style.webkitFlex=String(weight);section.style.flex=String(weight);section.appendChild(title);section.appendChild(row);details.grid.appendChild(section);target=row;}
+        members.forEach(function(slot){var missingType=['','?','unknown','unavailable','empty','none','n/a','null','-','--'].indexOf(String(slot.type||'').toLowerCase())!==-1,noInfo=!slot.available||slot.empty||typeof slot.type!=='string'||missingType,active=slot.active&&!noInfo;count++;var chip=node('div','pv2-filament'+(active?' pv2-filament-active':'')+(noInfo?' pv2-filament-empty-slot':'')),swatch=node('span','pv2-filament-color'),material=node('span','pv2-filament-type',noInfo?'—':slot.type),label=node('span','pv2-filament-slot',slot.label);chip.style.width=(100/members.length)+'%';if(!noInfo){swatch.style.backgroundColor=filamentColor(slot.color);}swatch.setAttribute('aria-hidden','true');chip.title=name+' · '+slot.label+' · '+(noInfo?(slot.empty?'Boş':'Bilgi yok'):slot.type)+(active?' · Kullanılıyor':'');chip.setAttribute('aria-label',chip.title);chip.appendChild(swatch);chip.appendChild(material);chip.appendChild(label);target.appendChild(chip);});
+      });
+      if(!count){details.grid.appendChild(node('span','pv2-filament-empty','Filament bilgisi yok'));}
+    }
+    function buildPrinterCamera(metrics){
+      metrics.classList.add('pv2-printer-metrics');
+      var box=node('section','pv2-printer-camera'),head=node('div','pv2-camera-header'),title=node('span','','Yazıcı Kamerası'),toggle=node('button','pv2-sound pv2-camera-toggle'),image=node('img'),status=node('p','pv2-camera-status','Kamera bekleniyor…');
+      toggle.type='button';toggle.innerHTML=icon('pause');toggle.setAttribute('aria-label','Kamera görüntüsünü duraklat');toggle.title='Kamera görüntüsünü duraklat';image.alt='Yazıcının kamera görüntüsü';image.style.display='none';status.setAttribute('role','status');head.appendChild(title);head.appendChild(toggle);box.appendChild(head);box.appendChild(image);box.appendChild(status);metrics.parentNode.appendChild(box);
+      printerCamera={box:box,image:image,status:status,toggle:toggle,enabled:true,active:false,timer:null,generation:0};
+      toggle.addEventListener('click',function(){printerCamera.enabled=!printerCamera.enabled;toggle.innerHTML=icon(printerCamera.enabled?'pause':'play');var label=printerCamera.enabled?'Kamera görüntüsünü duraklat':'Kamera görüntüsünü göster';toggle.setAttribute('aria-label',label);toggle.title=label;syncPrinterCamera();},false);
+    }
+    function cameraStatus(text,loading){var c=printerCamera;if(!c){return;}setText(c.status,text);c.status.classList.toggle('pv2-camera-loading',!!loading);c.status.setAttribute('aria-label',text);}
+    function stopPrinterCamera(){
+      var c=printerCamera;if(!c){return;}if(c.active){c.active=false;c.generation++;clearTimeout(c.timer);c.timer=null;c.image.onload=c.image.onerror=null;c.image.removeAttribute('src');}c.image.style.display='none';c.status.classList.remove('pv2-camera-loading');
+    }
+    function printerOffline(){return !!cfg.printer&&(!C.available(get(cfg.printer.status))||get(cfg.printer.status).state==='offline');}
+    function syncPrinterCamera(){
+      var c=printerCamera;if(!c){return;}
+      if(activeView()!=='Diğer'||document.hidden||!c.enabled||!connection()||(cfg.printer.power&&get(cfg.printer.power).state!=='on')||printerOffline()||!C.available(get(cfg.printer.camera))){
+        stopPrinterCamera();cameraStatus(!c.enabled?'Görüntü duraklatıldı':!connection()?'Home Assistant bağlantısı yok':cfg.printer.power&&get(cfg.printer.power).state==='off'?'Yazıcı kapalı':printerOffline()?'Yazıcı çevrimdışı':'Kameradan görüntü bekleniyor…',activeView()==='Diğer'&&!document.hidden&&c.enabled&&connection()&&!(cfg.printer.power&&get(cfg.printer.power).state!=='on')&&!printerOffline());c.status.style.display='';return;
+      }
+      if(c.active){return;}cameraStatus('Kamera görüntüsü yükleniyor',true);c.status.style.display='';c.active=true;c.generation++;requestPrinterFrame(c.generation);
+    }
+    function requestPrinterFrame(generation){
+      var c=printerCamera;if(!c||!c.active||c.generation!==generation){return;}
+      c.image.onload=function(){if(!c.active||c.generation!==generation){return;}c.image.style.display='';c.status.style.display='none';c.status.classList.remove('pv2-camera-loading');c.timer=setTimeout(function(){requestPrinterFrame(generation);},2000);};
+      c.image.onerror=function(){if(!c.active||c.generation!==generation){return;}c.image.style.display='none';c.status.style.display='';cameraStatus('Kamera görüntüsü alınamadı · tekrar denenecek',false);c.timer=setTimeout(function(){requestPrinterFrame(generation);},10000);};
+      c.image.src='/api/proxy/api/camera_proxy/'+encodeURIComponent(cfg.printer.camera)+'?panel_frame='+new Date().getTime();
+    }
     var errorNotice=node('div');errorNotice.id='pv2-notice';errorNotice.setAttribute('role','status');document.body.appendChild(errorNotice);
     function toggleCountdown(){
       if(!C.available(get(cfg.countdown))){notice('Geri sayım servisine ulaşılamıyor.');return;}
@@ -142,7 +302,7 @@
     var close=node('button','pv2-close','×');close.type='button';close.setAttribute('aria-label','Pencereyi kapat');close.title='Pencereyi kapat';
     var sound=node('button','pv2-sound');sound.type='button';
     function soundLabel(){setText(sound,'Ses: '+(soundEnabled?'Açık':'Kapalı'));sound.setAttribute('aria-pressed',soundEnabled?'true':'false');sound.title='Düğme tıklama sesi';}
-    soundLabel();sound.addEventListener('click',function(){soundEnabled=!soundEnabled;try{localStorage.setItem('panel-v2-click-sound',soundEnabled?'on':'off');}catch(ignore){}soundLabel();if(soundEnabled){clickSound(true);}},false);
+    soundLabel();sound.addEventListener('click',function(){soundEnabled=!soundEnabled;try{localStorage.setItem(preferencePrefix+'click-sound',soundEnabled?'on':'off');}catch(ignore){}soundLabel();if(soundEnabled){clickSound(true);}},false);
     header.appendChild(dialogTitle);header.appendChild(close);dialog.appendChild(header);
     var settings=node('div');dialog.appendChild(settings);modal.appendChild(dialog);document.body.appendChild(modal);
     close.addEventListener('click',closeDialog,false);
@@ -155,20 +315,36 @@
     modal.addEventListener('touchstart',function(ev){ev.stopPropagation();},false);
     modal.addEventListener('touchmove',function(ev){ev.stopPropagation();},false);
     modal.addEventListener('touchend',function(ev){ev.stopPropagation();},false);
-    function closeDialog(){modalRevision++;var wasOpen=modal.classList.contains('pv2-open');modal.classList.remove('pv2-open');modalIds=[];modalControls=[];if(wasOpen&&focusBeforeDialog&&document.body.contains(focusBeforeDialog)){if(keyboardInput){focusBeforeDialog.focus();}else if(document.activeElement&&document.activeElement.blur){document.activeElement.blur();}}}
+    function closeDialog(){powerDialogState=null;modalRevision++;var wasOpen=modal.classList.contains('pv2-open');modal.classList.remove('pv2-open');modalIds=[];modalControls=[];if(wasOpen&&focusBeforeDialog&&document.body.contains(focusBeforeDialog)){if(keyboardInput){focusBeforeDialog.focus();}else if(document.activeElement&&document.activeElement.blur){document.activeElement.blur();}}}
     function openDialog(title, ids){
-      modalRevision++;focusBeforeDialog=document.activeElement;modalIds=ids.slice(0);setText(dialogTitle,title);settings.innerHTML='';
+      modalRevision++;focusBeforeDialog=document.activeElement;modalIds=ids.slice(0);powerDialogState=null;setText(dialogTitle,title);dialog.classList.remove('pv2-power-dialog');settings.innerHTML='';
       var key=ids.join('|'),signature='';for(var si=0;si<ids.length;si++){var state=get(ids[si]);signature+=String(C.available(state))+JSON.stringify(C.capabilities(state));}
       var page=dialogCache[key];if(!page||page.signature!==signature){page={content:node('div'),controls:[],signature:signature};modalControls=[];for(var di=0;di<ids.length;di++){buildSettings(ids[di],ids.length>1,page.content);}page.controls=modalControls;dialogCache[key]=page;}else{modalControls=page.controls;}
       for(var ci=0;ci<modalControls.length;ci++){modalControls[ci].editing=false;}settings.appendChild(page.content);syncDialog();modal.classList.add('pv2-open');close.focus();
     }
+    function printerJobActive(){return !!cfg.printer&&['running','printing','prepare','pause','paused','slicing'].indexOf(get(cfg.printer.status).state)!==-1;}
+    function syncPowerDialog(){var p=powerDialogState;if(!p){return;}if(p.printer&&C.available(get(p.entity))&&((get(p.entity).state==='on')!==p.willOff)){closeDialog();return;}var needs=p.printer&&p.willOff&&printerJobActive();p.row.style.display=needs?'':'none';if(!needs){p.check.checked=false;}p.confirm.disabled=needs&&!p.check.checked;}
+    function openPowerDialog(o){
+      modalRevision++;focusBeforeDialog=document.activeElement;modalIds=[];modalControls=[];settings.innerHTML='';dialog.classList.add('pv2-power-dialog');
+      var willOff=get(o.entity).state==='on';setText(dialogTitle,o.printer?'Yazıcıyı kapat?':o.label);
+      var symbol=node('div','pv2-power-symbol');symbol.innerHTML=icon('plug');symbol.setAttribute('aria-hidden','true');settings.appendChild(symbol);
+      settings.appendChild(node('p','pv2-power-message',willOff?(o.printer?'Yazıcının elektrik beslemesi kesilecek.':'Cihazın elektrik beslemesi kesilecek.'):'Cihazın elektrik beslemesi açılacak.'));
+      settings.appendChild(node('p','pv2-dialog-hint',willOff?'Baskının ve soğutmanın tamamlandığından emin olun.':'Devam etmek için onaylayın.'));
+      var actions=node('div','pv2-power-actions'),cancel=node('button','pv2-sound pv2-power-cancel','Vazgeç'),confirm=node('button','pv2-sound pv2-power-confirm',willOff?'Gücü Kapat':'Gücü Aç');cancel.type=confirm.type='button';actions.appendChild(cancel);actions.appendChild(confirm);settings.appendChild(actions);
+      var acknowledgement=node('label','pv2-power-ack'),check=node('input');check.type='checkbox';acknowledgement.appendChild(check);acknowledgement.appendChild(node('span','','Devam eden işi yarıda keserek kapatmayı onaylıyorum.'));settings.insertBefore(acknowledgement,actions);
+      powerDialogState={entity:o.entity,printer:!!o.printer,willOff:willOff,row:acknowledgement,check:check,confirm:confirm};check.addEventListener('change',syncPowerDialog,false);syncPowerDialog();
+      cancel.addEventListener('click',closeDialog,false);
+      confirm.addEventListener('click',function(){if(o.printer&&willOff&&printerJobActive()&&!check.checked){syncPowerDialog();return;}if(!connection()||!C.available(get(o.entity))){notice('Cihaza ulaşılamıyor.');return;}if((get(o.entity).state==='on')!==willOff){closeDialog();notice('Cihazın durumu değişti. Lütfen yeniden kontrol edin.');return;}perform('power:'+o.entity,'switch',willOff?'turn_off':'turn_on',o.entity,null,closeDialog);},false);
+      modal.classList.add('pv2-open');cancel.focus();
+    }
     function openPanelSettings(){
-      modalRevision++;focusBeforeDialog=document.activeElement;modalIds=[];modalControls=[];setText(dialogTitle,'Panel Ayarları');settings.innerHTML='';
+      modalRevision++;focusBeforeDialog=document.activeElement;modalIds=[];modalControls=[];powerDialogState=null;setText(dialogTitle,'Panel Ayarları');dialog.classList.remove('pv2-power-dialog');settings.innerHTML='';
       function preference(title,hint,control){var row=node('div','pv2-preference'),description=node('div');description.appendChild(node('h3','',title));description.appendChild(node('p','pv2-dialog-hint',hint));row.appendChild(description);row.appendChild(control);settings.appendChild(row);}
       var audioActions=node('div','pv2-audio-actions'),testAudio=node('button','pv2-sound pv2-sound-test','Sesi Dene');testAudio.type='button';audioActions.appendChild(sound);audioActions.appendChild(testAudio);preference('Tıklama sesi','Hafif dokunma sesi. Tabletin medya sesi açık olmalı.',audioActions);audioStatus=node('p','pv2-dialog-hint');audioStatus.setAttribute('role','status');settings.appendChild(audioStatus);
       var delays=node('div','pv2-delay-options');
-      [{label:'Hızlı',ms:250},{label:'Normal',ms:500},{label:'Uzun',ms:800}].forEach(function(p){var b=node('button','pv2-delay',p.label);b.type='button';b.setAttribute('aria-pressed',holdDelay===p.ms?'true':'false');b.addEventListener('click',function(){holdDelay=p.ms;try{localStorage.setItem('panel-v2-hold-ms',String(holdDelay));}catch(ignore){}var all=delays.querySelectorAll('button');for(var i=0;i<all.length;i++){all[i].setAttribute('aria-pressed',all[i]===b?'true':'false');}},false);delays.appendChild(b);});
+      [{label:'Hızlı',ms:250},{label:'Normal',ms:500},{label:'Uzun',ms:800}].forEach(function(p){var b=node('button','pv2-delay',p.label);b.type='button';b.setAttribute('aria-pressed',holdDelay===p.ms?'true':'false');b.addEventListener('click',function(){holdDelay=p.ms;try{localStorage.setItem(preferencePrefix+'hold-ms',String(holdDelay));}catch(ignore){}var all=delays.querySelectorAll('button');for(var i=0;i<all.length;i++){all[i].setAttribute('aria-pressed',all[i]===b?'true':'false');}},false);delays.appendChild(b);});
       preference('Uzun basma','Lamba ayarlarının açılma süresi. Pil simgesini etkilemez.',delays);
+      if(officeProfile){var navKeys=node('button','pv2-sound','Alt Tuşlar');navKeys.type='button';navKeys.addEventListener('click',function(){window.location.href='officepanel://navigation';},false);preference('Fiziksel tuşlar','Samsung uygulamasında Ana Ekran, Geri ve Son Uygulamalar kilidini yönetin.',navKeys);}
       var actions=node('div','pv2-settings-actions'),clean=node('button','','Ekranı Temizle'),reload=node('button','','Sayfayı Yenile');clean.type=reload.type='button';
       clean.addEventListener('click',function(){closeDialog();cleanScreen();},false);
       reload.addEventListener('click',function(){window.location.reload();},false);
@@ -228,7 +404,39 @@
     function selectPreset(parent,button){var all=parent.parentNode.querySelectorAll('.pv2-preset');for(var i=0;i<all.length;i++){all[i].classList.remove('pv2-selected');all[i].setAttribute('aria-pressed','false');}button.classList.add('pv2-selected');button.setAttribute('aria-pressed','true');}
     function drawCard(item){
       var o=item.options,b=item.button,label=o.label,detail='',on=false,unavailable=false,key=o.ids?o.ids.join(','):o.kind,disabled=!connection();
-      if(o.kind&&o.kind.indexOf('vacuum-')===0){var action=C.robotControl(get(cfg.vacuum),o.kind.slice(7));label=action.label;detail=action.detail;disabled=disabled||!action.service||!!busy.robot;unavailable=!C.available(get(cfg.vacuum));key='vacuum';}
+      if(o.kind==='navigate'){detail='Odalar · Mutfak · Giriş';disabled=false;}
+      else if(o.kind==='printer'){
+        var printer=cfg.printer||{},state=get(printer.status),progress=get(printer.progress),remaining=get(printer.remaining),value=Number(progress.state),minutes=Number(remaining.state);
+        var timeUnit=remaining.attributes.unit_of_measurement;if(timeUnit==='h'){minutes*=60;}else if(timeUnit==='s'){minutes/=60;}
+        var printerOnline=connection()&&C.available(state)&&state.state!=='offline'&&(!printer.power||get(printer.power).state!=='off');
+        var printing=printerOnline&&['running','printing','prepare','paused','pause','slicing'].indexOf(state.state)!==-1;
+        var printerNames={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',printing:'Yazdırılıyor',prepare:'Hazırlanıyor',paused:'Duraklatıldı',pause:'Duraklatıldı',finish:'Tamamlandı',finished:'Tamamlandı',failed:'Baskı hatası'};
+        label=printer.label||'3D Yazıcı';disabled=false;on=printing;
+        detail=!connection()?'Bağlantı yok':printerStatusLabel(state);
+        var validProgress=C.available(progress)&&progress.state!==''&&isFinite(value)&&value>=0&&value<=100;
+        if(printing&&validProgress&&!officeProfile){detail+=' · '+Math.round(value)+'%';}
+        if(printing&&C.available(remaining)&&remaining.state!==''&&isFinite(minutes)&&minutes>0&&!(officeProfile&&cfg.agenda)){detail+=' · '+Math.ceil(minutes)+' dk';}
+        var bar=b.querySelector('.pv2-print-track');if(bar){bar.style.display=printing&&validProgress&&!(officeProfile&&cfg.agenda)?'block':'none';bar.firstChild.style.width=(validProgress?value:0)+'%';}
+        var summaryPercentNode=b.querySelector('.pv2-summary-percent'),showPercent=officeProfile&&printing&&validProgress;
+        if(summaryPercentNode){setText(summaryPercentNode,showPercent?Math.round(value)+'%':'');summaryPercentNode.style.display=showPercent?'block':'none';}
+        b.classList.toggle('pv2-has-percent',showPercent);
+        var accent=!connection()?'offline':printerStartup?'starting':printer.power&&get(printer.power).state==='off'?'off':!printerOnline?'offline':['failed','error'].indexOf(state.state)!==-1?'error':['pause','paused'].indexOf(state.state)!==-1?'paused':['prepare','slicing'].indexOf(state.state)!==-1?'starting':['running','printing'].indexOf(state.state)!==-1?'printing':['finish','finished'].indexOf(state.state)!==-1?'done':state.state==='idle'?'ready':'offline';
+        ['off','offline','ready','starting','printing','paused','error','done'].forEach(function(name){b.classList.toggle('pv2-printer-state-'+name,accent===name);});
+        b.setAttribute('data-printer-progress',showPercent?String(Math.round(value)):'');
+      }
+      else if(o.kind==='printer-status'){
+        var printerState=get(o.entity),printerPower=cfg.printer&&cfg.printer.power?get(cfg.printer.power):null;
+        var statusLabels={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',prepare:'Hazırlanıyor',pause:'Duraklatıldı',finish:'Tamamlandı',failed:'Baskı hatası'};
+        detail=printerStatusLabel(printerState);
+        disabled=disabled||!printerPower||!C.available(printerPower);key='power:'+(cfg.printer&&cfg.printer.power);on=printerState.state==='running';
+      }
+      else if(o.kind==='power'||o.kind==='sensor'){
+        var device=get(o.entity);unavailable=!C.available(device);if(o.kind==='sensor'&&cfg.printer&&o.entity!==cfg.printer.status&&get(cfg.printer.status).state==='offline'){unavailable=true;}key='power:'+o.entity;on=device.state==='on';
+        if(unavailable){detail='Veri yok';}else if(o.kind==='power'){detail=on?'Güç açık':'Güç kapalı';}else{var statusNames={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',pause:'Duraklatıldı',finish:'Tamamlandı',failed:'Hata'};detail=statusNames[device.state]||device.state;var unit=device.attributes.unit_of_measurement;if(unit){detail+=' '+({min:'dk',h:'sa',s:'sn'}[unit]||unit);}}
+        if(cfg.printer&&o.entity===cfg.printer.progress){var fill=b.querySelector('.pv2-card-progress-fill'),percent=Number(device.state),validPercent=!unavailable&&device.state!==''&&isFinite(percent)&&percent>=0&&percent<=100;if(fill){fill.style.width=(validPercent?percent:0)+'%';}if(validPercent){b.setAttribute('aria-valuenow',String(percent));}else{b.removeAttribute('aria-valuenow');}}
+        disabled=disabled||unavailable||o.kind==='sensor';
+      }
+      else if(o.kind&&o.kind.indexOf('vacuum-')===0){var action=C.robotControl(get(cfg.vacuum),o.kind.slice(7));label=action.label;detail=action.detail;disabled=disabled||!action.service||!!busy.robot;unavailable=!C.available(get(cfg.vacuum));key='vacuum';}
       else if(o.kind==='robot'){var robot=C.robot(get(cfg.vacuum));label=robot.label;detail=robot.detail;on=get(cfg.vacuum).state==='cleaning';disabled=disabled||!robot.service||!!busy.vacuum;unavailable=!C.available(get(cfg.vacuum));}
       else if(o.kind==='alloff'){
         var remaining=C.remaining(get(cfg.countdown),new Date().getTime());
@@ -248,17 +456,72 @@
       b.disabled=disabled||!!busy[key];b.classList.toggle('pv2-on',on);b.classList.toggle('pv2-unavailable',unavailable);
       b.classList.toggle('pv2-pending',!!busy[key]);b.setAttribute('aria-busy',busy[key]?'true':'false');
       setText(item.label,label);setText(item.status,!connection()?'Bağlantı yok':detail);
-      b.setAttribute('aria-label',label+' · '+detail);if(o.ids){b.setAttribute('aria-pressed',on?'true':'false');b.title='Dokun: aç/kapat · Uzun bas: lamba ayarları';}
+      b.setAttribute('aria-label',label+' · '+detail+(o.kind==='printer'&&b.getAttribute('data-printer-progress')?' · Baskı '+b.getAttribute('data-printer-progress')+'%':''));if(o.ids){b.setAttribute('aria-pressed',on?'true':'false');b.title=o.kind==='roomoff'?'Dokun: oda ışıklarını kapat':'Dokun: aç/kapat · Uzun bas: lamba ayarları';}
     }
     var conditions={'clear-night':'Açık gece','cloudy':'Bulutlu','exceptional':'Olağan dışı','fog':'Sisli','hail':'Dolu','lightning':'Şimşekli','lightning-rainy':'Gök gürültülü','partlycloudy':'Parçalı bulutlu','pouring':'Sağanak','rainy':'Yağmurlu','snowy':'Karlı','snowy-rainy':'Karla karışık','sunny':'Güneşli','windy':'Rüzgârlı','windy-variant':'Rüzgârlı'};
+    function renderAgenda(){
+      if(!agendaBox){return;}
+      var now=new Date().getTime()/1000,entry=get(cfg.agenda),a=entry.attributes||{},fresh=connection()&&C.available(entry)&&Number(a.valid_until)>now&&Number(a.valid_until)<=now+100;
+      var all=Object.prototype.toString.call(a.events)==='[object Array]'?a.events:[],items=[],day=Number(a.day_start),d=new Date(day*1000),weekdays=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'],today=new Date(),sameDay=d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();
+      if(fresh){for(var ai=0;ai<all.length;ai++){var e=all[ai];if(e&&typeof e.title==='string'&&isFinite(e.start)&&isFinite(e.end)&&Number(e.end)>now&&Number(e.start)<Number(e.end)){items.push(e);}}items.sort(function(x,y){return Number(x.start)-Number(y.start);});}
+      var signature=JSON.stringify([fresh,day,items.map(function(e){return [e.title,e.start,e.end,Number(e.start)<=now];})]);if(signature===agendaSignature){return;}agendaSignature=signature;
+      setText(agendaHeading,fresh?(sameDay?'Bugün':weekdays[d.getDay()]||'Toplantılar'):'Toplantılar');
+      while(agendaList.firstChild){agendaList.removeChild(agendaList.firstChild);}
+      if(!fresh||!items.length){agendaList.appendChild(node('p','pv2-agenda-empty',!fresh?'Takvim güncellenemiyor':sameDay?'Bugün başka toplantı yok':'Bu iş günü için toplantı yok'));return;}
+      var limit=agendaBox.clientHeight>=160?3:2;
+      for(var aj=0;aj<Math.min(items.length,limit);aj++){
+        var event=items[aj],row=node('div','pv2-agenda-event'),times=node('span','pv2-agenda-time'),title=node('span','pv2-agenda-title',event.title.slice(0,160));
+        function timeText(epoch){var t=new Date(Number(epoch)*1000);return ('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);}
+        setText(times,timeText(event.start)+'–'+timeText(event.end));row.classList.toggle('pv2-agenda-current',Number(event.start)<=now);row.appendChild(times);row.appendChild(title);agendaList.appendChild(row);
+      }
+      if(items.length>limit){agendaHeading.appendChild(node('span','pv2-agenda-more',' +'+(items.length-limit)));}
+    }
+    function forecastIcon(condition){
+      var sun='<circle cx="12" cy="12" r="4" fill="#f6cb73" stroke="#f6cb73"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2" stroke="#f6cb73"/>',cloud='<path d="M6 17a4 4 0 0 1 0-8 6 6 0 0 1 11-1 5 5 0 0 1 1 10H6" fill="#acc9df" stroke="#cce2f2"/>';
+      var content=cloud;
+      if(condition==='sunny'){content=sun;}else if(condition==='partlycloudy'){content='<g transform="translate(-2 -3) scale(.8)">'+sun+'</g>'+cloud;}
+      else if(condition==='clear-night'){content='<path d="M19 15A8 8 0 0 1 9 4a8 8 0 1 0 10 11" fill="#d5d9f5" stroke="#e8eaff"/>';}
+      else if(/lightning/.test(condition)){content=cloud+'<path d="m13 13-4 6h4l-2 4 7-7h-5l2-3" fill="#f6cb73" stroke="#f6cb73"/>';}
+      else if(/snow/.test(condition)){content=cloud+'<path d="M6 21h2m-1-1v2m5-1h2m-1-1v2m5-1h2m-1-1v2" stroke="#d4edff"/>';}
+      else if(/rain|pouring|hail/.test(condition)){content=cloud+'<path d="m7 20-1 3m7-3-1 3m7-3-1 3" stroke="#7ec9ff"/>';}
+      else if(condition==='fog'){content=cloud+'<path d="M3 20h18M6 23h12" stroke="#a7c4da"/>';}
+      else if(/windy/.test(condition)){content='<path d="M2 8h15a3 3 0 1 0-3-3M2 13h18M2 18h12a3 3 0 1 1-3 3" stroke="#b9dde9"/>';}
+      else if(!condition||!conditions[condition]){content='<path d="M8 12h8" stroke="#8b9bad"/>';}
+      return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+content+'</svg>';
+    }
+    function renderForecast(){
+      if(!forecastBox){return;}
+      var now=new Date().getTime(),fresh=connection()&&forecastAt>0&&now-forecastAt<3600000,rows=C.forecastDays(fresh?forecastRows:[],now,cfg.forecastDays),count=0;
+      for(var i=0;i<rows.length;i++){if(rows[i].high!==null){count++;}}
+      var note=!connection()?'Bağlantı yok':!fresh?(forecastPending?'Yükleniyor…':'Tahmin alınamadı'):count<rows.length?'Eksik günler: —':'En yüksek / en düşük';
+      var signature=JSON.stringify([fresh,rows,note]);if(signature===forecastSignature){return;}forecastSignature=signature;setText(forecastNote,note);
+      while(forecastList.firstChild){forecastList.removeChild(forecastList.firstChild);}
+      var labels=['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+      for(var j=0;j<rows.length;j++){
+        var day=rows[j],cell=node('div','pv2-forecast-day'+(j===0?' pv2-forecast-today':'')),symbol=node('span','pv2-forecast-icon'),high=day.high===null?'—':day.high+'°',low=day.low===null?'—':day.low+'°';
+        cell.style.width=(100/rows.length)+'%';cell.appendChild(node('span','pv2-forecast-weekday',j===0?'Bugün':labels[day.day]));symbol.innerHTML=forecastIcon(day.condition);cell.appendChild(symbol);cell.appendChild(node('span','pv2-forecast-high',high));cell.appendChild(node('span','pv2-forecast-low',low));
+        cell.setAttribute('aria-label',(j===0?'Bugün':labels[day.day])+': '+(day.high===null?'Tahmin yok':(conditions[day.condition]||'Hava tahmini')+', en yüksek '+high+', en düşük '+low));forecastList.appendChild(cell);
+      }
+    }
+    function requestForecast(){
+      if(!forecastBox||forecastPending||!connection()||document.hidden||activeView()!=='Ana'){return;}
+      var now=new Date().getTime();if(now-forecastAttempt<60000||forecastAt&&now-forecastAt<1800000){return;}
+      forecastAttempt=now;forecastPending=true;renderForecast();
+      var xhr=new XMLHttpRequest(),finished=false;
+      function finish(ok){if(finished){return;}finished=true;forecastPending=false;if(ok){try{var body=JSON.parse(xhr.responseText),entry=body.service_response&&body.service_response[cfg.weather];if(entry&&Object.prototype.toString.call(entry.forecast)==='[object Array]'&&entry.forecast.length){forecastRows=entry.forecast;forecastAt=new Date().getTime();}}catch(ignore){}}renderForecast();}
+      xhr.open('POST','/api/proxy/api/services/weather/get_forecasts?return_response',true);xhr.setRequestHeader('Content-Type','application/json');xhr.timeout=15000;
+      xhr.onload=function(){finish(xhr.status>=200&&xhr.status<300);};xhr.onerror=xhr.ontimeout=xhr.onabort=function(){finish(false);};xhr.send(JSON.stringify({entity_id:cfg.weather,type:'daily'}));
+    }
     function updateMeeting(v){var entry=get(cfg.meeting),age=new Date().getTime()/1000-Number(entry.attributes.last_report_epoch||0);v.meeting.classList.toggle('pv2-active',v.name==='Ana'&&connection()&&entry.state==='on'&&age>=-5&&age<40);}
     function render(){
-      syncDialog();var active=activeView();
+      renderAgenda();renderForecast();syncDialog();syncPowerDialog();syncPrinterCamera();renderPrinterDetails();var active=activeView();
       for(var i=0;i<cards.length;i++){if(cards[i].view===active){drawCard(cards[i]);}}
       var entry=get(cfg.weather),t=entry.attributes.temperature,valid=C.available(entry)&&t!==null&&t!==undefined&&t!==''&&isFinite(Number(t));
       var weatherName=entry.state==='sunny'?'sun':entry.state==='clear-night'?'moon':(/rain|pouring|hail|snow/.test(entry.state)?'rain':'cloud');
       for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}
         setText(v.status,connection()?'● Home Assistant':'○ Bağlantı yok');v.status.title=connection()?'Home Assistant bağlantısı açık':'Home Assistant bağlantısı kesildi';v.status.setAttribute('aria-label',v.status.title);v.status.style.color=connection()?'#9fd8c2':'#ffb4b4';
+        if(v.indoor){var inside=get(cfg.indoorTemperature),insideValue=inside.state,insideValid=connection()&&C.available(inside)&&insideValue!==''&&isFinite(Number(insideValue));setText(v.indoor,insideValid?String(Math.round(Number(insideValue)*10)/10).replace('.',',')+'°':'—°');v.indoor.parentNode.setAttribute('aria-label',(cfg.indoorLabel||'Ev içi sıcaklık')+': '+(insideValid?insideValue+' '+(inside.attributes.unit_of_measurement||'°C'):'veri yok'));}
+        if(v.humidity){var humidityEntry=get(cfg.indoorHumidity),humidityNumber=Number(humidityEntry.state),humidityValid=connection()&&C.available(humidityEntry)&&humidityEntry.state!==''&&isFinite(humidityNumber)&&humidityNumber>=0&&humidityNumber<=100;setText(v.humidity,humidityValid?String(Math.round(humidityNumber*10)/10).replace('.',',')+'%':'—%');v.humidity.parentNode.setAttribute('aria-label','Ev içi nem: '+(humidityValid?humidityNumber+'%':'veri yok'));}
         setText(v.temperature,valid?String(Math.round(Number(t)*10)/10).replace('.',',')+'°':'--°');setText(v.condition,!connection()?'Bağlantı yok':(C.available(entry)?conditions[entry.state]||'Hava durumu':'Veri yok'));
         if(weatherName!==v.previousWeatherIcon){v.weatherIcon.innerHTML=icon(weatherName);v.previousWeatherIcon=weatherName;}
         updateMeeting(v);
@@ -270,7 +533,7 @@
     // time), after that initial event. Newer WS changes win over in-flight REST.
     function reconcileSnapshot(generation) {
       snapshotNeeded = false;
-      var ids = cfg.allLights.concat(cfg.extraLights || [], [cfg.weather,cfg.vacuum,cfg.countdown,cfg.meeting]);
+      var ids = cfg.allLights.concat(cfg.extraLights || [], [cfg.weather,cfg.vacuum,cfg.countdown,cfg.meeting].concat(cfg.agenda?[cfg.agenda]:[],cfg.indoorTemperature?[cfg.indoorTemperature]:[],cfg.indoorHumidity?[cfg.indoorHumidity]:[]),(cfg.otherControls||[]).map(function(o){return o.entity;}),cfg.printer?[cfg.printer.status,cfg.printer.progress,cfg.printer.remaining].concat(cfg.printer.power?[cfg.printer.power]:[],cfg.printer.camera?[cfg.printer.camera]:[],cfg.printer.nozzle?[cfg.printer.nozzle]:[],cfg.printer.bed?[cfg.printer.bed]:[],(cfg.printer.filaments||[]).map(function(s){return s.entity;})):[]);
       var unique = [], index = 0;
       ids.forEach(function(id){if(unique.indexOf(id)===-1 && listeners[id]){unique.push(id);}});
       function next(){
@@ -295,15 +558,15 @@
     // Old adjustable widgets otherwise throw on attribute-only/state-only updates.
     for(var eid in listeners){if(Object.prototype.hasOwnProperty.call(listeners,eid)){
       (function(id, callbacks){var old=callbacks.slice(0);callbacks.length=0;cache[id]={state:'unknown',attributes:{}};
-        callbacks.push(function(state,attrs){versions[id]=(versions[id]||0)+1;cache[id]=C.merge(get(id),state,attrs||{});scheduleRender();if(snapshotNeeded){snapshotNeeded=false;var generation=connectionGeneration;setTimeout(function(){if(generation===connectionGeneration){reconcileSnapshot(generation);}},0);}for(var i=0;i<old.length;i++){if(old[i]){try{old[i](cache[id].state,cache[id].attributes);}catch(ignore){/* Isolate legacy widget failures. */}}}});
+        callbacks.push(function(state,attrs){versions[id]=(versions[id]||0)+1;cache[id]=C.merge(get(id),state,attrs||{});if(printerStartup&&cfg.printer&&id===cfg.printer.status&&state!==undefined){checkPrinterStartup();}scheduleRender();if(snapshotNeeded){snapshotNeeded=false;var generation=connectionGeneration;setTimeout(function(){if(generation===connectionGeneration){reconcileSnapshot(generation);}},0);}for(var i=0;i<old.length;i++){if(old[i]){try{old[i](cache[id].state,cache[id].attributes);}catch(ignore){/* Isolate legacy widget failures. */}}}});
       })(eid,listeners[eid]);
     }}
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
-    function clockTick(){var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(active==='Ana'&&get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].options.kind==='alloff'){drawCard(cards[ci]);break;}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
-    function navigated(){closeDialog();clockTick();render();}
+    function clockTick(){renderAgenda();renderForecast();requestForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
+    function navigated(){for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();clockTick();render();}
     window.addEventListener('hashchange',navigated,false);
     window.addEventListener('screen-navigate',navigated,false);
-    document.addEventListener('visibilitychange',function(){if(document.hidden){closeDialog();}},false);
+    document.addEventListener('visibilitychange',function(){if(document.hidden){closeDialog();}syncPrinterCamera();},false);
     clockTick();render();setInterval(clockTick,1000);
     clearTimeout(window.panelV2LoadingTimer);document.documentElement.classList.remove('pv2-loading');
   }

@@ -22,7 +22,7 @@ body.panel-v2 { background:#171d27; color:#f2f4f8; font-family:Arial,sans-serif;
 .pv2-meeting.pv2-active { visibility:visible; }
 .pv2-meeting-dot { display:inline-block; width:12px; height:12px; margin-right:7px; border-radius:50%; background:#ff575f; }
 .pv2-controls { width:60%; display:-webkit-flex; display:flex; -webkit-flex-wrap:wrap; flex-wrap:wrap; -webkit-align-content:stretch; align-content:stretch; margin:-4px; }
-.pv2-card { width:calc(50% - 8px); height:calc(25% - 8px); margin:4px; padding:9px 12px; border:1px solid #3c485a; border-radius:13px; background:#252f3e; color:#f3f5fa; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; text-align:left; font-family:Arial,sans-serif; cursor:pointer; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
+.pv2-card { width:calc(50% - 8px); height:calc(25% - 8px); margin:4px; padding:8px 12px; border:1px solid #3c485a; border-radius:13px; background:#252f3e; color:#f3f5fa; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; text-align:left; font-family:Arial,sans-serif; cursor:pointer; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
 .pv2-card:active { background:#3b485b; }
 .pv2-card.pv2-on { background:#44392b; border-color:#927549; }
 .pv2-card svg { width:27px; height:27px; -webkit-flex-shrink:0; flex-shrink:0; margin-right:11px; color:#acbbce; }
@@ -98,7 +98,7 @@ body.panel-v2 { background:#171d27; color:#f2f4f8; font-family:Arial,sans-serif;
   .pv2-card.pv2-action .pv2-card-state { line-height:14px; }
 }
 
-.pv2-settings-trigger { position:absolute; left:0; bottom:0; width:44px; height:44px; padding:10px; border:1px solid #465568; border-radius:13px; background:#25303f; color:#b7c7da; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.pv2-settings-trigger { position:absolute; left:0; bottom:-10px; width:44px; height:44px; padding:10px; border:1px solid #465568; border-radius:13px; background:#25303f; color:#b7c7da; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .pv2-settings-trigger svg { width:22px; height:22px; }
 .pv2-settings-trigger:focus { outline:none; }
 .pv2-keyboard .pv2-settings-trigger:focus { outline:2px solid #a9d8ee; outline-offset:2px; }
@@ -135,3 +135,21 @@ body.panel-v2 { background:#171d27; color:#f2f4f8; font-family:Arial,sans-serif;
 
 .pv2-card:active { box-shadow:inset 0 0 0 2px #a9c9de; }
 .pv2-preset:disabled { opacity:.5; }
+
+/* Shared card spacing; no viewport or control-grid changes. */
+.pv2-card > svg { -webkit-flex:none; flex:none; }
+.pv2-card-text { min-width:0; }
+/* Indoor/outdoor readings share the existing weather column below the clock. */
+.pv2-weather-pair { position:relative; left:-6px; min-height:99px; margin-top:1px; }
+.pv2-weather-pair .pv2-weather-main { width:100%; -webkit-align-items:flex-start; align-items:flex-start; }
+.pv2-weather-reading { width:50%; min-width:0; text-align:center; }
+.pv2-weather-reading-icon { display:block; height:22px; }
+.pv2-weather-pair .pv2-weather-main svg { width:22px; height:22px; margin:0; }
+.pv2-weather-pair .pv2-temperature { display:block; font-size:44px; line-height:50px; letter-spacing:-1px; white-space:nowrap; }
+.pv2-weather-pair .pv2-condition { font-size:18px; line-height:22px; }
+
+.pv2-indoor-caption { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; white-space:nowrap; }
+.pv2-weather-pair .pv2-indoor-caption-label { font-size:14px; margin-right:6px; }
+.pv2-weather-pair .pv2-indoor-humidity { display:-webkit-inline-flex; display:inline-flex; -webkit-align-items:center; align-items:center; font-size:18px; line-height:22px; color:#c3d7e6; }
+.pv2-weather-pair .pv2-indoor-humidity > span:first-child { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; }
+.pv2-weather-pair .pv2-indoor-humidity svg { width:12px; height:12px; margin-right:3px; }
