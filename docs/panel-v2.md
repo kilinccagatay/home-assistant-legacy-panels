@@ -202,7 +202,11 @@ NODE_PATH=/tmp/denver-panel-ui-tests/node_modules node tests/panel-ui.test.cjs
 
 This checks live modal brightness/color, drag protection, cached menu reuse,
 250 ms Fast timing/migration, shared feedback, automatic close only after successful
-presets, failure notices, Home display naming, and tab activation from cached state.
+presets, failure notices, stable audio-feedback rows, sound preference persistence,
+Home display naming, and tab activation from cached state.
+
+The [2026-11-01 visual review](ui-review-2026-11-01.md) includes actual Denver/Samsung
+settings captures, agenda geometry and the complete PASS/FAIL/PENDING/N/A record.
 
 Run `node tests/panel-v2.test.cjs` for compact state merging, device capabilities,
 group behavior, robot state transitions, countdown timing, and touch/long-press

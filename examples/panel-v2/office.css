@@ -142,11 +142,11 @@
 .panel-v2-office .pv2-with-agenda .pv2-card-label { white-space:normal; font-size:16px; line-height:19px; }
 .pv2-agenda { position:absolute; left:4px; bottom:4px; width:calc(66.667% - 8px); height:calc(50% - 8px); padding:8px 10px; border:1px solid #3c485a; border-radius:12px; background:#202b3a; color:#e7eef8; overflow:hidden; }
 .pv2-agenda-heading { margin:0 0 5px; font:12px/16px Arial,sans-serif; color:#b9c7db; }
-.pv2-agenda-event { display:-webkit-flex; display:flex; min-width:0; padding:5px 0; border-top:1px solid #354356; -webkit-align-items:center; align-items:center; }
-.pv2-agenda-time { width:73px; min-width:73px; font:11px/14px Arial,sans-serif; color:#b9c7db; }
-.pv2-agenda-title { min-width:0; font:13px/15px Arial,sans-serif; max-height:30px; overflow:hidden; overflow-wrap:break-word; word-wrap:break-word; }
+.pv2-agenda-event { display:-webkit-flex; display:flex; min-width:0; min-height:34px; padding:6px 4px; border-top:1px solid #354356; border-left:2px solid transparent; -webkit-align-items:center; align-items:center; }
+.pv2-agenda-time { display:block; width:76px; min-width:76px; margin-right:8px; -webkit-flex:none; flex:none; white-space:nowrap; font:13px/18px Arial,sans-serif; font-variant-numeric:tabular-nums; color:#b9c7db; }
+.pv2-agenda-title { display:block; min-width:0; -webkit-flex:1; flex:1; font:13px/18px Arial,sans-serif; max-height:36px; overflow:hidden; overflow-wrap:break-word; word-wrap:break-word; }
 .pv2-agenda-current .pv2-agenda-time { color:#a6ddc5; }
-.pv2-agenda-current { border-left:2px solid #a6ddc5; padding-left:5px; }
+.pv2-agenda-current { border-left:2px solid #a6ddc5; padding-left:4px; }
 .pv2-agenda-empty { margin:8px 0 0; color:#b9c7db; font:14px/20px Arial,sans-serif; }
 .pv2-agenda-more { color:#a6cde4; }
 

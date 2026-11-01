@@ -8,6 +8,11 @@ remotes and bookmarks to the new name. The printable enclosure remains Denver-on
 
 ### Shared dashboard
 
+- Settings sound toggles/test feedback keep dialog geometry stable on both devices.
+- Agenda rows use consistent text metrics; settings padding and close icons align.
+- Custom lamp holds suppress the legacy native selection crash path. See the
+  [scoped visual review and outstanding device gate](docs/ui-review-2026-11-01.md).
+
 - Large clock and centered two-line Turkish date; translated weather conditions.
 - Live indoor temperature/humidity mappings, separate from printer or plug temperatures.
 - Grouped light controls, long-press dimmer/color presets, default lamp tones,

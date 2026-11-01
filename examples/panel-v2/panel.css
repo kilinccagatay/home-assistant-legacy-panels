@@ -50,7 +50,7 @@ body.panel-v2 { background:#171d27; color:#f2f4f8; font-family:Arial,sans-serif;
 .pv2-dialog { width:620px; max-width:94vw; max-height:94vh; padding:18px 22px; border:1px solid #536278; border-radius:18px; background:#202b3a; box-shadow:0 12px 36px rgba(0,0,0,.4); overflow-y:auto; }
 .pv2-dialog-header { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:space-between; justify-content:space-between; margin-bottom:12px; }
 .pv2-dialog h2 { font:700 24px Arial,sans-serif; margin:0; }
-.pv2-close { width:46px; min-width:46px; min-height:46px; padding:0; border:1px solid #64758b; border-radius:10px; background:#34465c; color:white; font:32px Arial,sans-serif; }
+.pv2-close { width:46px; min-width:46px; min-height:46px; padding:0; border:1px solid #64758b; border-radius:10px; background:#34465c; color:white; font:32px/1 Arial,sans-serif; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; }
 .pv2-light-settings { border-top:1px solid #3e4d61; margin-top:9px; padding-top:10px; }
 .pv2-light-settings h3 { margin:0 0 6px; font-size:17px; color:#cbd7e5; }
 .pv2-setting-row { display:-webkit-flex; display:flex; -webkit-flex-wrap:wrap; flex-wrap:wrap; -webkit-align-items:center; align-items:center; -webkit-justify-content:space-between; justify-content:space-between; margin:4px 0 12px; }
@@ -99,10 +99,10 @@ body.panel-v2 { background:#171d27; color:#f2f4f8; font-family:Arial,sans-serif;
 }
 
 .pv2-settings-trigger { position:absolute; left:0; bottom:-10px; width:44px; height:44px; padding:10px; border:1px solid #465568; border-radius:13px; background:#25303f; color:#b7c7da; cursor:pointer; -webkit-tap-highlight-color:transparent; }
-.pv2-settings-trigger svg { width:22px; height:22px; }
+.pv2-settings-trigger svg { display:block; width:22px; height:22px; }
 .pv2-settings-trigger:focus { outline:none; }
 .pv2-keyboard .pv2-settings-trigger:focus { outline:2px solid #a9d8ee; outline-offset:2px; }
-.pv2-preference { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; padding:18px 0 10px; border-top:1px solid #3e4d61; }
+.pv2-preference { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; padding:14px 0; border-top:1px solid #3e4d61; }
 .pv2-preference h3 { margin:0; font-size:20px; }
 .pv2-preference > div { -webkit-flex:1; flex:1; padding-right:24px; }
 .pv2-preference .pv2-sound { margin:0; min-width:110px; }
@@ -153,3 +153,6 @@ body.panel-v2 { background:#171d27; color:#f2f4f8; font-family:Arial,sans-serif;
 .pv2-weather-pair .pv2-indoor-humidity { display:-webkit-inline-flex; display:inline-flex; -webkit-align-items:center; align-items:center; font-size:18px; line-height:22px; color:#c3d7e6; }
 .pv2-weather-pair .pv2-indoor-humidity > span:first-child { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; }
 .pv2-weather-pair .pv2-indoor-humidity svg { width:12px; height:12px; margin-right:3px; }
+
+/* Keep audio feedback from resizing/recentering the settings dialog on touch. */
+.pv2-audio-status { height:40px; min-height:40px; max-height:40px; overflow:hidden; }

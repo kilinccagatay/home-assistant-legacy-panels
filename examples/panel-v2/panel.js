@@ -23,12 +23,12 @@
     function pointerInput(){keyboardInput=false;document.body.classList.remove('pv2-keyboard');}
     document.addEventListener('touchstart',pointerInput,true);
     document.addEventListener('mousedown',pointerInput,true);
-    var soundEnabled=true,holdDelay=500,audio=document.createElement('audio'),audioStatus=null;
+    var soundEnabled=true,holdDelay=500,audio=document.createElement('audio'),audioStatus=null,audioTestFeedback=false;
     audio.preload='auto';audio.volume=1;audio.setAttribute('aria-hidden','true');audio.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none';
     var soundBase=window.location.protocol+'//'+window.location.hostname+':8123/local/';
     [{src:cfg.clickSoundUrl||soundBase+'panel-click.mp3',type:'audio/mpeg'},{src:cfg.clickSoundWavUrl||soundBase+'panel-click.wav',type:'audio/wav'}].forEach(function(source){var n=document.createElement('source');n.src=source.src;n.type=source.type;audio.appendChild(n);});document.body.appendChild(audio);
     function soundStatus(text){if(audioStatus){setText(audioStatus,text);}}
-    audio.addEventListener('playing',function(){soundStatus('Ses oynatıldı. Duyulmuyorsa medya sesini kontrol edin.');},false);
+    audio.addEventListener('playing',function(){if(audioTestFeedback){soundStatus('Ses denemesi oynatıldı. Medya sesini kontrol edin.');}},false);
     audio.addEventListener('error',function(){soundStatus('Ses dosyası oynatılamadı. Hata: '+(audio.error?audio.error.code:'bilinmiyor'));},false);
     try{var savedSound=localStorage.getItem(preferencePrefix+'click-sound');if(savedSound==='on'||savedSound==='off'){soundEnabled=savedSound==='on';}var savedDelay=Number(localStorage.getItem(preferencePrefix+'hold-ms'));if(savedDelay===450){savedDelay=250;}else if(savedDelay===650){savedDelay=500;}else if(savedDelay===900){savedDelay=800;}if([250,500,800].indexOf(savedDelay)!==-1){holdDelay=savedDelay;}}catch(ignore){}
     // Decode once; a new lightweight buffer source starts directly on touch-down.
@@ -38,10 +38,10 @@
     function fastSound(){
       if(!fastContext||!fastBuffer||fastFailed){return false;}
       try{if(fastContext.state==='suspended'&&fastContext.resume){var resuming=fastContext.resume();if(resuming&&resuming.catch){resuming.catch(function(){fastFailed=true;});}}
-        var source=fastContext.createBufferSource();source.buffer=fastBuffer;source.connect(fastContext.destination);source.onended=function(){source.disconnect();};if(source.start){source.start(0);}else{source.noteOn(0);}soundStatus('Ses oynatıldı · Hızlı ses');return true;
+        var source=fastContext.createBufferSource();source.buffer=fastBuffer;source.connect(fastContext.destination);source.onended=function(){source.disconnect();};if(source.start){source.start(0);}else{source.noteOn(0);}if(audioTestFeedback){soundStatus('Ses denemesi oynatıldı.');}return true;
       }catch(ignore){fastFailed=true;return false;}
     }
-    function clickSound(force){if(!soundEnabled&&!force){return;}if(fastSound()){return;}try{try{audio.currentTime=0;}catch(ignore){}var playing=audio.play();if(playing&&playing.catch){playing.catch(function(error){soundStatus(error.name==='NotAllowedError'?'Tarayıcı ses oynatmayı engelledi. Sesi Dene düğmesine dokunun.':'Ses oynatılamadı: '+error.name);});}}catch(ignore){soundStatus('Bu tarayıcı sesi başlatamadı.');}}
+    function clickSound(force){audioTestFeedback=!!force;if(!soundEnabled&&!force){return;}if(fastSound()){return;}try{try{audio.currentTime=0;}catch(ignore){}var playing=audio.play();if(playing&&playing.catch){playing.catch(function(error){soundStatus(error.name==='NotAllowedError'?'Tarayıcı ses oynatmayı engelledi. Sesi Dene düğmesine dokunun.':'Ses oynatılamadı: '+error.name);});}}catch(ignore){soundStatus('Bu tarayıcı sesi başlatamadı.');}}
     var lastTouchSoundAt=0,lastPointerSoundAt=0,lastPointerControl=null,touchFeedbackActive=false;
     function feedbackControl(target){for(var el=target;el&&el!==document.body;el=el.parentNode){if(el.nodeType!==1){continue;}var tag=el.tagName;if(tag==='BUTTON'||tag==='SELECT'||tag==='INPUT'||tag==='A'||el.classList.contains('navbar-item')){return el.disabled||el.getAttribute('aria-disabled')==='true'?null:el;}}return null;}
     function pressFeedback(ev){var now=new Date().getTime();if(ev.type==='mousedown'&&(ev.button!==0||now-lastTouchSoundAt<800)){return;}if(ev.touches&&ev.touches.length!==1){return;}var el=feedbackControl(ev.target);if(!el){return;}if(ev.touches){lastTouchSoundAt=now;touchFeedbackActive=true;}lastPointerSoundAt=now;lastPointerControl=el;clickSound(el.classList.contains('pv2-sound-test'));}
@@ -353,8 +353,8 @@
     }
     function openPanelSettings(){
       modalRevision++;focusBeforeDialog=document.activeElement;modalIds=[];modalControls=[];powerDialogState=null;setText(dialogTitle,'Panel Ayarları');dialog.classList.remove('pv2-power-dialog');settings.innerHTML='';
-      function preference(title,hint,control){var row=node('div','pv2-preference'),description=node('div');description.appendChild(node('h3','',title));description.appendChild(node('p','pv2-dialog-hint',hint));row.appendChild(description);row.appendChild(control);settings.appendChild(row);}
-      var audioActions=node('div','pv2-audio-actions'),testAudio=node('button','pv2-sound pv2-sound-test','Sesi Dene');testAudio.type='button';audioActions.appendChild(sound);audioActions.appendChild(testAudio);preference('Tıklama sesi','Hafif dokunma sesi. Tabletin medya sesi açık olmalı.',audioActions);audioStatus=node('p','pv2-dialog-hint');audioStatus.setAttribute('role','status');settings.appendChild(audioStatus);
+      function preference(title,hint,control){var row=node('div','pv2-preference'),description=node('div');description.appendChild(node('h3','',title));var hintNode=node('p','pv2-dialog-hint',hint);description.appendChild(hintNode);row.appendChild(description);row.appendChild(control);settings.appendChild(row);return hintNode;}
+      var audioActions=node('div','pv2-audio-actions'),testAudio=node('button','pv2-sound pv2-sound-test','Sesi Dene');testAudio.type='button';audioActions.appendChild(sound);audioActions.appendChild(testAudio);audioStatus=preference('Tıklama sesi','Hafif dokunma sesi. Tabletin medya sesi açık olmalı.',audioActions);audioStatus.classList.add('pv2-audio-status');audioStatus.setAttribute('role','status');
       var delays=node('div','pv2-delay-options');
       [{label:'Hızlı',ms:250},{label:'Normal',ms:500},{label:'Uzun',ms:800}].forEach(function(p){var b=node('button','pv2-delay',p.label);b.type='button';b.setAttribute('aria-pressed',holdDelay===p.ms?'true':'false');b.addEventListener('click',function(){holdDelay=p.ms;try{localStorage.setItem(preferencePrefix+'hold-ms',String(holdDelay));}catch(ignore){}var all=delays.querySelectorAll('button');for(var i=0;i<all.length;i++){all[i].setAttribute('aria-pressed',all[i]===b?'true':'false');}},false);delays.appendChild(b);});
       preference('Uzun basma','Lamba ayarlarının açılma süresi. Pil simgesini etkilemez.',delays);

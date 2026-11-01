@@ -64,6 +64,19 @@ function close(){d.querySelector('.pv2-close').click();}
   feed(cfg.lights.dining,'off',{brightness:null});await sleep(25);
   mouse(dining,'mousedown');mouse(dining,'mouseup');dining.click();await sleep(25);
   assert.deepEqual(JSON.parse(JSON.stringify(commands.at(-1).service_data)),{color_temp_kelvin:2700},'normal panel turn-on restores the configured white without changing brightness');
+  d.querySelector('.pv2-settings-trigger').click();
+  const audioHint=d.querySelector('.pv2-audio-status'),hintText=audioHint.textContent;
+  const preferenceRow=audioHint.closest('.pv2-preference'),settingsNodes=preferenceRow.parentNode.childElementCount;
+  const soundToggle=preferenceRow.querySelector('.pv2-sound');
+  mouse(soundToggle,'mousedown');w.document.querySelector('audio').dispatchEvent(new w.Event('playing'));
+  assert.equal(audioHint.textContent,hintText,'ordinary feedback must not replace the settings description');
+  soundToggle.click();assert.equal(w.localStorage.getItem('panel-v2-click-sound'),'off');
+  soundToggle.click();assert.equal(w.localStorage.getItem('panel-v2-click-sound'),'on');
+  d.querySelector('.pv2-sound-test').click();d.querySelector('audio').dispatchEvent(new w.Event('playing'));
+  assert.match(audioHint.textContent,/Ses denemesi/,'explicit audio test reports in the existing description');
+  assert.equal(preferenceRow.parentNode.childElementCount,settingsNodes,'audio feedback must not insert a row that shifts controls');
+  assert.equal(audioHint.closest('.pv2-preference'),preferenceRow,'feedback retains the same preference row');
+  close();
   // Only the active view is populated, and navigating populates it from the cache.
   assert.equal(d.querySelector('#panel-v2-Giriş .pv2-clock').textContent,'');
   w.location.hash='#screen-Giri%C5%9F';await sleep(25);

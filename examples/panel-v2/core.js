@@ -94,6 +94,9 @@
       if (ev.type === 'mousedown' && (scheduler.now() - touchAt < 800 || ev.button !== 0)) { return; }
       if (ev.touches && ev.touches.length !== 1) { cancel(); held=true;started=false;return; }
       if (ev.touches) { touchAt = scheduler.now(); }
+      // Our own touchend/timer handles these cards. Cancel native long-touch
+      // selection before legacy Crosswalk enters its crashing context-menu path.
+      if(ev.touches&&longPress){ev.preventDefault();}
       held = false;started = true;
       if(pressStart){pressStart();}
       var p = ev.touches ? ev.touches[0] : ev; startX = p.clientX; startY = p.clientY;
