@@ -620,7 +620,10 @@
     window.addEventListener('hashchange',navigated,false);
     window.addEventListener('screen-navigate',navigated,false);
     function resetAgendaDay(){agendaSelected=0;agendaSignature=null;renderAgenda();}
-    window.addEventListener('panel-display-dark',resetAgendaDay,false);
+    window.addEventListener('panel-display-dark',function(){
+      resetAgendaDay();
+      if(officeProfile){closeDialog();if(activeView()!=='Ana'){navigateScreen('Ana');}syncPrinterCamera();}
+    },false);
     document.addEventListener('visibilitychange',function(){if(document.hidden){resetAgendaDay();closeDialog();}syncPrinterCamera();},false);
     clockTick();render();setInterval(clockTick,1000);
     clearTimeout(window.panelV2LoadingTimer);document.documentElement.classList.remove('pv2-loading');

@@ -226,7 +226,10 @@ The selected tab has a filled, outlined accent treatment. Tapping a day filters
 its meetings without changing lights or meeting status. An empty day explicitly
 says there are no meetings; expired/disconnected data says it cannot update.
 Ordinary calendar heartbeats retain the selection. A new base workday, document
-hiding or native `panel-display-dark` event restores the first tab. Brightness-only
+hiding or native `panel-display-dark` event restores the first calendar day.
+On Samsung, the native dark event also closes dialogs and returns the dashboard
+to Odam, stopping Printer-view camera requests. It does not use a separate web
+idle timer or change Android timeout/motion/power policy. Brightness-only
 dimming needs that native event; browser visibility alone is insufficient.
 
 Use MacCallIndicator development Build 8 and the matching updated agenda receiver.
