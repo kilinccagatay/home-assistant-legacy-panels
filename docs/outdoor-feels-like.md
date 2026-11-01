@@ -27,10 +27,10 @@ apparent temperature; inside has a droplet and relative humidity. There is no
 visible “Hissedilen” label; the accessible name and tooltip retain that meaning.
 The compact style applies only when the secondary outside sensor is configured.
 Apparent temperature and humidity use matching 18 px Denver / 16 px Samsung
-fonts. The numeric body is centered independently of the degree/percent suffix;
-the suffix remains visible and accessible. Leading thermometer/droplet icons
-also sit outside numeric layout width, so main and secondary numbers share the
-same center.
+fonts. Each complete visible reading, including its sign, unit and leading symbol,
+is centered under the weather/house symbol. Primary symbols have zero side
+margin; the previous inherited 7 px right margin displaced their visual axis.
+There are no positive/negative-specific offsets or invisible sign placeholders.
 
 Negative values and zero are valid for both temperature readings. Missing,
 unavailable, nonnumeric, disconnected or stale apparent data displays `—`, never

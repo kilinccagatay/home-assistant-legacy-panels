@@ -76,7 +76,7 @@
     function icon(name) { return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="'+(paths[name] || paths.bulb)+'"/></svg>'; }
     function node(tag, className, text) { var n = document.createElement(tag); if (className) { n.className = className; } if (text !== undefined) { n.textContent = text; } return n; }
     function setText(n, text) { if (n.textContent !== String(text)) { n.textContent = text; } }
-    // Center the numeric content; the unit has zero layout width to its right.
+    // Keep signs, symbols and units together so the visible reading centers as one.
     function setQuantity(el,value,unit,leadingIcon){
       var number=el.querySelector('.pv2-number'),suffix=el.querySelector('.pv2-unit'),quantity=number?number.parentNode:null;
       if(!number){el.textContent='';quantity=node('span','pv2-quantity');number=node('span','pv2-number');suffix=node('span','pv2-unit');quantity.appendChild(number);quantity.appendChild(suffix);el.appendChild(quantity);}
@@ -199,7 +199,7 @@
         weatherMain.appendChild(outside);weatherMain.appendChild(inside);
       }else{weatherMain.appendChild(weatherIcon);weatherMain.appendChild(temperature);}
       weather.appendChild(weatherMain);if(!cfg.indoorTemperature){weather.appendChild(condition);}
-      if(cfg.outdoorFeelsLike){overview.classList.add('pv2-overview-with-feels');weather.classList.add('pv2-with-feels');var feels=node('div','pv2-feels-like');var feelsIcon=node('span','pv2-feels-icon');feelsIcon.innerHTML=icon('thermometer');feels.appendChild(feelsIcon);feelsValue=node('span','pv2-feels-value','—');feels.appendChild(feelsValue);feels.title='Dışarı hissedilen sıcaklık · Open-Meteo';if(cfg.indoorTemperature){outside.appendChild(feels);}else{weather.appendChild(feels);}}
+      if(cfg.outdoorFeelsLike){overview.classList.add('pv2-overview-with-feels');weather.classList.add('pv2-with-feels');var feels=node('div','pv2-feels-like');var feelsIcon=node('span','pv2-feels-icon');feelsIcon.innerHTML=icon('thermometer');feels.appendChild(feelsIcon);feelsValue=node('span','pv2-feels-value','—');feels.appendChild(feelsValue);feels.title='Dışarı hissedilen sıcaklık · Open-Meteo';if(cfg.indoorTemperature){outside.appendChild(feels);if(humidityValue){var indoorSecondary=node('div','pv2-indoor-secondary');indoorSecondary.appendChild(humidityValue.parentNode);inside.appendChild(indoorSecondary);}}else{weather.appendChild(feels);}}
       overview.appendChild(weather);
       var meeting=node('div','pv2-meeting');meeting.innerHTML='<span class="pv2-meeting-dot"></span>Toplantı';overview.appendChild(meeting);
       var trigger=node('button','pv2-settings-trigger');trigger.type='button';trigger.innerHTML=icon('settings');trigger.setAttribute('aria-label','Panel Ayarları');trigger.title='Panel Ayarları';trigger.addEventListener('click',function(){openPanelSettings();},false);overview.appendChild(trigger);

@@ -236,7 +236,7 @@
 .panel-v2-office .pv2-with-feels .pv2-temperature { line-height:28px; }
 .panel-v2-office .pv2-with-feels .pv2-condition { line-height:16px; }
 .panel-v2-office .pv2-with-feels .pv2-weather-reading-icon { height:16px; }
-.panel-v2-office .pv2-with-feels .pv2-weather-reading-icon svg { width:16px; height:16px; }
+.panel-v2-office .pv2-with-feels .pv2-weather-reading-icon svg { width:16px; height:16px; margin:0; }
 .panel-v2-office .pv2-with-feels .pv2-feels-like svg { width:10px; height:10px; margin:0 3px 0 0; }
 
 .panel-v2-office .pv2-with-feels .pv2-indoor-caption-label { margin:0; font-size:14px; line-height:16px; }

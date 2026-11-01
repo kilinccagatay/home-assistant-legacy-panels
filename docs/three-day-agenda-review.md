@@ -60,7 +60,7 @@ PENDING; configuration inspection is not a reboot test.
 | ID | Denver | Samsung | Evidence / outstanding work |
 | --- | --- | --- | --- |
 | D01 | PENDING | PENDING | No cold boot performed; batteryless Samsung must not be rebooted casually. |
-| D02 | PENDING | PASS | Samsung native dim occurs 30 seconds after last motion; user confirmed dark and first-day reset after the helper test. Denver physical timeout not repeated. |
+| D02 | PENDING | PENDING | Earlier Build 13 dim/reset cycle passed. Physical timeout must be repeated on current native Build 14; Denver timeout not repeated. |
 | D03 | PENDING | PENDING | Samsung single dark/reset cycle confirmed; normal existing helper restarted. Complete stable/no-flicker observation on final installed state remains pending. |
 | D04 | PENDING | PENDING | Three physical wake cycles and dim-room observation outstanding. |
 | D05 | PENDING | PENDING | Two-minute dark-scene and false-wake test outstanding. |
@@ -72,7 +72,7 @@ PENDING; configuration inspection is not a reboot test.
 | D11 | PENDING | PENDING | No root-helper stop/recovery or duplicate-process test. |
 | D12 | PENDING | PENDING | Wi-Fi ADB reachable; reboot persistence not retested. |
 | D13 | PENDING | PENDING | No new uninterrupted 30-minute/overnight acceptance run; final Samsung hold survived. |
-| D14 | N/A | PASS | Samsung Build 13 retained all user preference values; only launch URL version and internal Chromium resource version changed. Denver APK unchanged. |
+| D14 | N/A | PASS | Samsung Build 14 retained all user preference values; only launch URL version and internal Chromium resource version changed. Denver APK unchanged. |
 | U01 | PASS | N/A | Denver remains byte-identical to its prior deployed web version. |
 | U02 | PASS | PASS | Native office captures show Turkish clock/date/weather and live indoor readings; Denver unchanged. |
 | U03 | PASS | PASS | Actual Samsung Home shows three fitting day tabs and two meeting rows. Denver unchanged. |
@@ -143,3 +143,32 @@ for both served profiles. These checks do not replace pending power/camera check
 - `panel.js`: `eb811ab73eed3ec6f0be037c54ef00383e5896b4a430595ec3b3fbbc4d578022`
 - `panel.css`: `038545ae3d58d9b4cfbffc275ac8a18013ec53de26d60be6456fc7c2ef7555b2`
 - `office.css`: `1300c2dd72d1b1a9373b389aaeb65c77fa06a295ff50003af2c5e03f95d8218f`
+
+## Follow-up: cloud-axis alignment and startup orientation
+
+Current Samsung APK is Build 14; the landscape/startup-diagnostic changes are
+recorded in the Android repository's Samsung orientation guide. Real phone reboot
+acceptance remains PENDING; two application restarts were landscape.
+
+The latest weather layout uses the actual primary SVG center as its reference.
+An inherited 7 px right SVG margin caused a 3.5 px displacement in the Samsung
+preview independent of temperature sign. That margin is now zero, and each
+complete visible reading (leading symbol, signed number, unit) is centered as
+one group. This supersedes the numeric-only center approach described earlier
+in this review. Positive, negative and zero fixtures were compared against the
+SVG itself, rather than only the containing column. No sign-dependent offset
+is applied. Both served profiles and physical-device captures are verified
+after deployment. The complete general-feature gate above remains PENDING.
+
+The indoor secondary row is now a direct centered sibling of its caption,
+matching the outside stack rather than nesting caption and humidity differently.
+Final SVG-relative measurements for +4.7, −4.7 and zero were 0 px outside and
+less than 0.01 px inside for both primary and secondary complete readings;
+caption text also matched the axis. Native captures on both devices were
+updated. This is scoped visual evidence; reboot, wake, power and household
+actuation PENDING rows above remain PENDING.
+
+Latest cloud-axis deployed assets (superseding the earlier hashes):
+- `panel.js`: `7a21eb529f9658f57d1dbfe177cb47521d1523ade34b07a5d0d878ad3c139a34`
+- `panel.css`: `c3b12545516d70450a6a8edc5bc0e0a768024334bb3858e0b5146a589c1983f0`
+- `office.css`: `976c31ed27cdfbf294500c07de745e6c8d3959d6cadb37ab5cca394127ac22ef`
