@@ -118,6 +118,14 @@
       pending.expiry=setTimeout(function(){if(printerShutdown===pending){stopPrinterShutdown();readPowerState();}},10000);scheduleRender();
     }
     function printerDataReady(){return !!cfg.printer&&connection()&&!printerStartup&&!printerShutdown&&!printerOffline()&&(!cfg.printer.power||get(cfg.printer.power).state==='on');}
+    function printerDisplayState(state){
+      var p=cfg.printer||{};
+      if(state.state!=='failed'||!p.stage||!p.printError||!p.hmsErrors){return state.state;}
+      var stage=get(p.stage),error=get(p.printError),hms=get(p.hmsErrors);
+      // A stopped job can retain FAILED after cancellation. Only confirmed idle
+      // plus both cleared fault signals may return to Ready; unknown stays failed.
+      return C.available(stage)&&stage.state==='idle'&&C.available(error)&&error.state==='off'&&C.available(hms)&&hms.state==='off'?'idle':'failed';
+    }
     function printerStatusLabel(state){
       if(!connection()){return 'Bağlantı yok';}
       if(printerShutdown){return 'Kapatılıyor…';}
@@ -125,7 +133,7 @@
       if(cfg.printer&&cfg.printer.power&&get(cfg.printer.power).state==='off'){return 'Kapalı';}
       if(cfg.printer&&cfg.printer.power&&['on','off'].indexOf(get(cfg.printer.power).state)===-1){return 'Güç durumu bilinmiyor';}
       var names={offline:'Çevrimdışı',idle:'Hazır',running:'Yazdırılıyor',printing:'Yazdırılıyor',prepare:'Hazırlanıyor',pause:'Duraklatıldı',paused:'Duraklatıldı',slicing:'Hazırlanıyor',finish:'Tamamlandı',finished:'Tamamlandı',failed:'Baskı hatası'};
-      return names[state.state]||'Veri bekleniyor';
+      return names[printerDisplayState(state)]||'Veri bekleniyor';
     }
     function readPowerState(callback){
       var id=cfg.printer&&cfg.printer.power;if(!id||!connection()){if(callback){callback(new Error('Bağlantı yok'));}return;}
@@ -449,7 +457,8 @@
         b.setAttribute('data-printer-remaining',showRemaining?(minutes>0?Math.ceil(minutes):'<1')+' dk':'');
         b.classList.toggle('pv2-has-summary-footer',showPercent||showRemaining);
         b.classList.toggle('pv2-has-percent',showPercent);
-        var accent=!connection()?'offline':printerShutdown?'off':printerStartup?'starting':printer.power&&get(printer.power).state==='off'?'off':!printerOnline?'offline':['failed','error'].indexOf(state.state)!==-1?'error':['pause','paused'].indexOf(state.state)!==-1?'paused':['prepare','slicing'].indexOf(state.state)!==-1?'starting':['running','printing'].indexOf(state.state)!==-1?'printing':['finish','finished'].indexOf(state.state)!==-1?'done':state.state==='idle'?'ready':'offline';
+        var displayState=printerDisplayState(state);
+        var accent=!connection()?'offline':printerShutdown?'off':printerStartup?'starting':printer.power&&get(printer.power).state==='off'?'off':!printerOnline?'offline':['failed','error'].indexOf(displayState)!==-1?'error':['pause','paused'].indexOf(displayState)!==-1?'paused':['prepare','slicing'].indexOf(displayState)!==-1?'starting':['running','printing'].indexOf(displayState)!==-1?'printing':['finish','finished'].indexOf(displayState)!==-1?'done':displayState==='idle'?'ready':'offline';
         ['off','offline','ready','starting','printing','paused','error','done'].forEach(function(name){b.classList.toggle('pv2-printer-state-'+name,accent===name);});
         b.setAttribute('data-printer-progress',showPercent?String(Math.round(value)):'');
       }
@@ -586,7 +595,7 @@
     // time), after that initial event. Newer WS changes win over in-flight REST.
     function reconcileSnapshot(generation) {
       snapshotNeeded = false;
-      var ids = cfg.allLights.concat(cfg.extraLights || [], [cfg.weather,cfg.vacuum,cfg.countdown,cfg.meeting].concat(cfg.agenda?[cfg.agenda]:[],cfg.indoorTemperature?[cfg.indoorTemperature]:[],cfg.indoorHumidity?[cfg.indoorHumidity]:[],cfg.outdoorFeelsLike?[cfg.outdoorFeelsLike]:[]),(cfg.otherControls||[]).map(function(o){return o.entity;}),cfg.printer?[cfg.printer.status,cfg.printer.progress,cfg.printer.remaining].concat(cfg.printer.power?[cfg.printer.power]:[],cfg.printer.camera?[cfg.printer.camera]:[],cfg.printer.nozzle?[cfg.printer.nozzle]:[],cfg.printer.bed?[cfg.printer.bed]:[],(cfg.printer.filaments||[]).map(function(s){return s.entity;})):[]);
+      var ids = cfg.allLights.concat(cfg.extraLights || [], [cfg.weather,cfg.vacuum,cfg.countdown,cfg.meeting].concat(cfg.agenda?[cfg.agenda]:[],cfg.indoorTemperature?[cfg.indoorTemperature]:[],cfg.indoorHumidity?[cfg.indoorHumidity]:[],cfg.outdoorFeelsLike?[cfg.outdoorFeelsLike]:[]),(cfg.otherControls||[]).map(function(o){return o.entity;}),cfg.printer?[cfg.printer.status,cfg.printer.progress,cfg.printer.remaining].concat(cfg.printer.power?[cfg.printer.power]:[],cfg.printer.camera?[cfg.printer.camera]:[],cfg.printer.nozzle?[cfg.printer.nozzle]:[],cfg.printer.bed?[cfg.printer.bed]:[],cfg.printer.stage?[cfg.printer.stage]:[],cfg.printer.printError?[cfg.printer.printError]:[],cfg.printer.hmsErrors?[cfg.printer.hmsErrors]:[],(cfg.printer.filaments||[]).map(function(s){return s.entity;})):[]);
       var unique = [], index = 0;
       ids.forEach(function(id){if(unique.indexOf(id)===-1 && listeners[id]){unique.push(id);}});
       function next(){

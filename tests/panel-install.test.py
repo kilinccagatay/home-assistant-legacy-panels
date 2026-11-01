@@ -77,6 +77,22 @@ class InstallationTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
 
+    def test_printer_failure_corroboration_subscriptions_and_domains(self):
+        original = yaml.safe_load((ROOT / 'examples/hoarydash.example.yaml').read_text())
+        original['dashboards']['office'] = copy.deepcopy(original['dashboards']['dash'])
+        mapping = json.loads((ROOT / 'examples/panel-v2/config.example.json').read_text())
+        mapping['profile'] = 'office'
+        mapping['printer'] = dict(status='sensor.example_status', progress='sensor.example_progress',
+                                  remaining='sensor.example_remaining', stage='sensor.example_stage',
+                                  printError='binary_sensor.example_print_error', hmsErrors='binary_sensor.example_hms_errors')
+        result = install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
+        cards = result['dashboards']['office']['screens'][0]['sensors']['cards']
+        self.assertTrue(set(mapping['printer'].values()).issubset({c['entity_id'] for c in cards}))
+        self.assertEqual(result['dashboards']['dash'], original['dashboards']['dash'])
+        mapping['printer']['printError'] = 'light.invalid_error'
+        with self.assertRaises(AssertionError):
+            install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
+
     def test_agenda_subscription_is_office_only(self):
         original = yaml.safe_load((ROOT / 'examples/hoarydash.example.yaml').read_text())
         original['dashboards']['office'] = copy.deepcopy(original['dashboards']['dash'])

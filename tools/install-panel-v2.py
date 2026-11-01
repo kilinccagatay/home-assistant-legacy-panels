@@ -45,6 +45,10 @@ def build_configuration(original, mapping, assets, dashboard='dash'):
         if mapping.get('printer', {}).get(key):
             assert mapping['printer'][key].startswith('sensor.')
             printer_entities.append(mapping['printer'][key])
+    for key, domain in [('stage', 'sensor.'), ('printError', 'binary_sensor.'), ('hmsErrors', 'binary_sensor.')]:
+        if mapping.get('printer', {}).get(key):
+            assert mapping['printer'][key].startswith(domain), 'Printer fault/stage entity has wrong domain'
+            printer_entities.append(mapping['printer'][key])
     for slot in mapping.get('printer', {}).get('filaments', []):
         assert isinstance(slot, dict) and slot['entity'].startswith('sensor.') and isinstance(slot['label'], str)
         printer_entities.append(slot['entity'])

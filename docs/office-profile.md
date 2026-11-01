@@ -243,3 +243,28 @@ before publication; no underlying work title or metadata is retained.
 
 See [the three-day validation record](three-day-agenda-review.md) for exact scope
 and outstanding physical-device acceptance.
+
+## Cancelled jobs and retained failure state
+
+Some Bambu printers retain `failed` as the last job result after cancellation.
+The panel does not infer a current hardware error from that result alone when
+corroborating sensors are configured. Optional printer mapping fields are
+`stage` (a sensor), `printError` and `hmsErrors` (binary problem sensors).
+
+If status is `failed`, stage is explicitly `idle` and both problem sensors are
+available and `off`, Home and Printer show **Hazır** with the ready accent. The
+old percentage and remaining-time footer stay cleared because no job is active.
+Active, unknown, unavailable or unconfigured corroborating signals retain the
+failure display. There is no time-based suppression of errors, fabricated
+cancellation reason, or change to the underlying Home Assistant entities/history.
+
+```json
+{
+  "stage": "sensor.example_printer_stage",
+  "printError": "binary_sensor.example_printer_error",
+  "hmsErrors": "binary_sensor.example_printer_hms_errors"
+}
+```
+
+Add these inside your existing `printer` mapping. The installer validates their
+domains and subscribes them explicitly; no printer service is called.
