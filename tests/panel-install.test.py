@@ -59,6 +59,7 @@ class InstallationTests(unittest.TestCase):
         mapping['profile'] = 'office'
         mapping['indoorTemperature'] = 'sensor.example_indoor'
         mapping['indoorHumidity'] = 'sensor.example_humidity'
+        mapping['outdoorFeelsLike'] = 'sensor.example_outdoor_feels_like'
         mapping['otherControls'] = [{'entity': 'sensor.example_printer_status', 'label': 'Printer', 'kind': 'sensor'}]
         result = install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
         self.assertEqual(result['dashboards']['dash'], original['dashboards']['dash'])
@@ -67,6 +68,7 @@ class InstallationTests(unittest.TestCase):
         self.assertIn('sensor.example_printer_status', {c['entity_id'] for c in cards})
         self.assertIn('sensor.example_indoor', {c['entity_id'] for c in cards})
         self.assertIn('sensor.example_humidity', {c['entity_id'] for c in cards})
+        self.assertIn('sensor.example_outdoor_feels_like', {c['entity_id'] for c in cards})
         mapping['robotEnabled'] = False
         without_robot = install.build_configuration(original, mapping, ROOT / 'examples/panel-v2', 'office')
         self.assertNotIn('Robot', [s['name'] for s in without_robot['dashboards']['office']['screens']])

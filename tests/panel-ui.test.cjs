@@ -6,13 +6,14 @@ const path=require('node:path');
 const {JSDOM}=require('jsdom');
 const root=path.resolve(__dirname,'..');
 const cfg=JSON.parse(fs.readFileSync(path.join(root,'examples/panel-v2/config.example.json')));
+cfg.outdoorFeelsLike='sensor.example_feels_like';cfg.indoorTemperature='sensor.example_indoor';cfg.indoorHumidity='sensor.example_humidity';
 const dom=new JSDOM('<!doctype html><body>'+['Ana','Mutfak','Giriş','Odalar','Robot'].map(n=>'<main id="screen-'+n+'" class="screen"></main>').join('')+'<nav><div class="navbar-item"><span class="navbar-label">Ana</span></div></nav></body>',{url:'http://panel.test:4567/dash/#screen-Ana',runScripts:'outside-only'});
 const w=dom.window,d=w.document,commands=[];
 let sounds=0,rejectCommand=false;
 w.HTMLMediaElement.prototype.play=function(){sounds++;return Promise.resolve();};
 w.localStorage.setItem('panel-v2-hold-ms','450'); // Migrates the old Fast preference to 250 ms.
 w.PANEL_V2_CONFIG=cfg;w.entityListeners={};w.onHaReady=[];w.haSocketReady=true;
-const states={};
+const states={};states[cfg.indoorTemperature]={entity_id:cfg.indoorTemperature,state:'22.3',attributes:{}};states[cfg.indoorHumidity]={entity_id:cfg.indoorHumidity,state:'37',attributes:{}};states[cfg.outdoorFeelsLike]={entity_id:cfg.outdoorFeelsLike,state:'-3.4',attributes:{time:Date.now()/1000,unit_of_measurement:'°C'}};
 for(const id of cfg.allLights){states[id]={entity_id:id,state:'off',attributes:{brightness:null,supported_color_modes:['xy','color_temp'],color_mode:'xy',rgb_color:[255,95,170]}};}
 for(const id of [cfg.weather,cfg.meeting,cfg.vacuum,cfg.countdown]){states[id]={entity_id:id,state:'off',attributes:{}};}
 Object.values(states).forEach(e=>w.entityListeners[e.entity_id]=[]);
@@ -30,6 +31,14 @@ function close(){d.querySelector('.pv2-close').click();}
   d.dispatchEvent(new w.Event('DOMContentLoaded'));await sleep(25);
   for(const e of Object.values(states)){feed(e.entity_id,e.state,e.attributes);}await sleep(25);
   assert.equal(d.querySelector('.navbar-label').textContent,'EVİM','visible Home name changes without changing the Ana route');
+  feed(cfg.indoorHumidity,'42.3',{});await sleep(25);assert.equal(d.querySelector('#panel-v2 .pv2-indoor-humidity-value').textContent,'42,3%','humidity keeps its value and unit after symbol layout changes');
+  for(const value of [-12.5,0,8.1]){
+   feed(cfg.outdoorFeelsLike,String(value),{time:Date.now()/1000});feed(cfg.weather,'cloudy',{temperature:value});await sleep(25);
+   assert.equal(d.querySelector('#panel-v2 .pv2-feels-value').textContent,String(value).replace('.',',')+'°','feels-like preserves negative and zero values');
+   assert.equal(d.querySelector('#panel-v2 .pv2-temperature').textContent,String(value).replace('.',',')+'°','outside temperature preserves negative and zero values');
+  }
+  feed(cfg.outdoorFeelsLike,'4',{time:Date.now()/1000-1900});await sleep(25);assert.equal(d.querySelector('#panel-v2 .pv2-feels-value').textContent,'—','stale apparent temperature must not linger');
+  feed(cfg.outdoorFeelsLike,'unavailable',{time:Date.now()/1000});await sleep(25);assert.equal(d.querySelector('#panel-v2 .pv2-feels-value').textContent,'—','missing apparent temperature is not zero');
   const dining=button('Yemek Masası');
   await hold(dining);
   assert.equal(d.querySelector('.pv2-modal').classList.contains('pv2-open'),true,'Fast must open within 290 ms including migration');

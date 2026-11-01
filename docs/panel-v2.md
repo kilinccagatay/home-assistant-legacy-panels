@@ -245,3 +245,7 @@ preferences were preserved. Clock/date/audio remain in HoaryDash in this build.
 See the [native fix and installation/validation notes](https://github.com/kilinccagatay/wallpanel-android-legacy/blob/lite-motion-core/docs/first-touch-fix.md).
 Use an APK with the same signing certificate and an in-place update; do not clear
 app data. The root-helper path is firmware-specific, not a generic Android fix.
+
+The [outside apparent-temperature guide](outdoor-feels-like.md) covers the optional
+Open-Meteo REST sensor, regional location privacy, negative/zero values and the
+matching three-row inside/outside layout.

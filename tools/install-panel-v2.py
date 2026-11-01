@@ -29,6 +29,8 @@ def build_configuration(original, mapping, assets, dashboard='dash'):
         assert mapping.get('profile') == 'office' and mapping['agenda'].startswith('sensor.'), 'Agenda is an office-only explicit sensor'
     if mapping.get('indoorTemperature'):
         assert mapping['indoorTemperature'].startswith('sensor.')
+    if mapping.get('outdoorFeelsLike'):
+        assert mapping['outdoorFeelsLike'].startswith('sensor.')
     if mapping.get('indoorHumidity'):
         assert mapping['indoorHumidity'].startswith('sensor.')
     printer_entities = [mapping['printer'][key] for key in ('status', 'progress', 'remaining')] if mapping.get('printer') else []
@@ -77,7 +79,7 @@ def build_configuration(original, mapping, assets, dashboard='dash'):
     home = next(s for s in panel['screens'] if s['name'] == 'Ana')
     cards = home.setdefault('sensors', {}).setdefault('cards', [])
     needed = list(mapping['allLights']) + mapping.get('extraLights', []) + [
-        mapping['weather'], mapping['countdown'], mapping['meeting']] + ([mapping['agenda']] if mapping.get('agenda') else []) + ([mapping['indoorTemperature']] if mapping.get('indoorTemperature') else []) + ([mapping['indoorHumidity']] if mapping.get('indoorHumidity') else []) + ([mapping['vacuum']] if mapping.get('robotEnabled', True) else []) + [c['entity'] for c in mapping.get('otherControls', [])] + printer_entities
+        mapping['weather'], mapping['countdown'], mapping['meeting']] + ([mapping['agenda']] if mapping.get('agenda') else []) + ([mapping['indoorTemperature']] if mapping.get('indoorTemperature') else []) + ([mapping['indoorHumidity']] if mapping.get('indoorHumidity') else []) + ([mapping['outdoorFeelsLike']] if mapping.get('outdoorFeelsLike') else []) + ([mapping['vacuum']] if mapping.get('robotEnabled', True) else []) + [c['entity'] for c in mapping.get('otherControls', [])] + printer_entities
 
     def entity_ids(value):
         found = set()

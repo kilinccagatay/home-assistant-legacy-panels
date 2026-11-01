@@ -202,3 +202,26 @@ while the printer is off, starting, shutting down or disconnected.
 Actual Samsung Printer view with the configured power switch off:
 
 ![Printer off: no retained progress or live telemetry](images/office-printer-off.png)
+
+## Three-workday agenda selection
+
+The optional calendar area has three equal day tabs. The first is today's
+workday, or Monday on weekends; the next two workdays skip Saturday/Sunday.
+The selected tab has a filled, outlined accent treatment. Tapping a day filters
+its meetings without changing lights or meeting status. An empty day explicitly
+says there are no meetings; expired/disconnected data says it cannot update.
+Ordinary calendar heartbeats retain the selection. A new base workday, document
+hiding or native `panel-display-dark` event restores the first tab. Brightness-only
+dimming needs that native event; browser visibility alone is insufficient.
+
+Use MacCallIndicator development Build 8 and the matching updated agenda receiver.
+Upgrade the receiver first, then restart HA; old single-day reports remain valid.
+No agenda title subscription or APK update is added to Denver.
+
+![Samsung three-day agenda, meeting titles redacted](images/office-three-day-agenda.png)
+
+Actual Samsung Home capture. Meeting titles were covered with flat neutral labels
+before publication; no underlying work title or metadata is retained.
+
+See [the three-day validation record](three-day-agenda-review.md) for exact scope
+and outstanding physical-device acceptance.

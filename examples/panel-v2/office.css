@@ -221,3 +221,27 @@
   .pv2-forecast-high { font-size:20px; line-height:23px; }
   .pv2-forecast-low { font-size:15px; line-height:18px; }
 }
+
+/* Three workday tabs share equal insets; the selected day is explicit. */
+.pv2-agenda-heading { display:-webkit-flex; display:flex; padding:0; margin:0 0 4px; background:transparent; }
+.pv2-agenda-day { -webkit-flex:1; flex:1; min-width:0; height:32px; margin:0 8px 0 0; padding:4px 3px; border:1px solid transparent; border-radius:6px; background:transparent; color:#b9c7db; font:12px/18px Arial,sans-serif; white-space:nowrap; }
+.pv2-agenda-day:last-child { margin-right:0; }
+.pv2-agenda-day[aria-selected="true"] { border-color:#789fc5; background:#354f70; color:#edf6ff; font-weight:bold; }
+.pv2-agenda-day:disabled { opacity:.55; }
+.pv2-agenda-day:focus { outline:none; }
+.pv2-keyboard .pv2-agenda-day:focus { outline:2px solid #a9d8ee; outline-offset:-2px; }
+
+.panel-v2-office .pv2-feels-like { font-size:12px; line-height:18px; }
+.panel-v2-office .pv2-feels-value { font-size:16px; }
+.panel-v2-office .pv2-with-feels .pv2-temperature { line-height:28px; }
+.panel-v2-office .pv2-with-feels .pv2-condition { line-height:16px; }
+.panel-v2-office .pv2-with-feels .pv2-weather-reading-icon { height:16px; }
+.panel-v2-office .pv2-with-feels .pv2-weather-reading-icon svg { width:16px; height:16px; }
+.panel-v2-office .pv2-with-feels .pv2-feels-like svg { width:10px; height:10px; margin:0 3px 0 0; }
+
+.panel-v2-office .pv2-with-feels .pv2-indoor-caption-label { margin:0; font-size:14px; line-height:16px; }
+.panel-v2-office .pv2-with-feels .pv2-indoor-humidity { font-size:16px; line-height:18px; }
+
+/* Preserve the large clock font while freeing six pixels for the larger readings. */
+.panel-v2-office .pv2-overview-with-feels .pv2-clock { line-height:90px; }
+.panel-v2-office .pv2-overview-with-feels .pv2-date { line-height:20px; }

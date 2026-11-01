@@ -156,3 +156,28 @@ body.panel-v2 { background:#171d27; color:#f2f4f8; font-family:Arial,sans-serif;
 
 /* Keep audio feedback from resizing/recentering the settings dialog on touch. */
 .pv2-audio-status { height:40px; min-height:40px; max-height:40px; overflow:hidden; }
+
+/* A compact, explicit secondary outside reading; negatives never lose their sign. */
+.pv2-feels-like { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; font:14px/22px Arial,sans-serif; color:#bdd0df; white-space:nowrap; text-align:center; }
+.pv2-feels-value { font-size:18px; font-variant-numeric:tabular-nums; }
+
+.pv2-weather-pair.pv2-with-feels .pv2-temperature { line-height:44px; }
+.pv2-with-feels .pv2-weather-reading-icon { height:20px; }
+.pv2-with-feels .pv2-weather-reading-icon svg { width:20px; height:20px; }
+
+.pv2-feels-icon { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; }
+.pv2-with-feels .pv2-feels-like svg { width:13px; height:13px; margin:0 3px 0 0; }
+
+/* Matching outside/inside hierarchy: temperature, caption, secondary reading. */
+.pv2-with-feels .pv2-indoor-caption { -webkit-flex-direction:column; flex-direction:column; -webkit-justify-content:flex-start; justify-content:flex-start; }
+.pv2-with-feels .pv2-indoor-caption-label { margin:0; font-size:18px; line-height:22px; }
+.pv2-with-feels .pv2-indoor-humidity { font-size:18px; line-height:22px; }
+
+/* Units remain visible without shifting the visual center of numeric readings. */
+.pv2-quantity { position:relative; display:inline-block; white-space:nowrap; }
+.pv2-unit { position:absolute; left:100%; top:0; line-height:inherit; }
+
+body.panel-v2:not(.panel-v2-office) .pv2-overview-with-feels .pv2-settings-trigger { bottom:-18px; }
+
+/* Leading symbols are also excluded: all signed numbers share the column center. */
+.pv2-quantity-icon { position:absolute; right:100%; top:0; bottom:0; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; }

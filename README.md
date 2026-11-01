@@ -241,3 +241,7 @@ This repository intentionally excludes live credentials, access tokens, Wi-Fi da
 - [HoaryDash](https://github.com/Skrubbadubba/HoaryDash)
 - [Home Assistant vacuum integration](https://www.home-assistant.io/integrations/vacuum/)
 - [linux-sunxi tools](https://github.com/linux-sunxi/sunxi-tools)
+
+Recent dashboard guides: [three-workday calendar](docs/office-profile.md#three-workday-agenda-selection) ·
+[outside apparent temperature](docs/outdoor-feels-like.md) ·
+[scoped validation and pending device checks](docs/three-day-agenda-review.md).

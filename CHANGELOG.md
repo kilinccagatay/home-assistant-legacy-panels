@@ -8,6 +8,9 @@ remotes and bookmarks to the new name. The printable enclosure remains Denver-on
 
 ### Shared dashboard
 
+- Optional Open-Meteo apparent temperature with negative/zero/missing-state handling;
+  matching three-row inside/outside readings on both profiles.
+
 - Settings sound toggles/test feedback keep dialog geometry stable on both devices.
 - Agenda rows use consistent text metrics; settings padding and close icons align.
 - Custom lamp holds suppress the legacy native selection crash path. See the
@@ -28,6 +31,9 @@ remotes and bookmarks to the new name. The printable enclosure remains Denver-on
 - Boolean meeting indicator without work titles or attendee data.
 
 ### Samsung office profile (development branch / draft PR #1)
+
+- Three selectable workdays in the agenda; ordinary refresh retains the selected
+  day and a native display-dark event resets it to the first workday.
 
 - Separate office layout, preferences and Android flavor; no battery badge or robot tab.
 - Selected-calendar workday agenda, weekends showing Monday, freshness/expiry states.
