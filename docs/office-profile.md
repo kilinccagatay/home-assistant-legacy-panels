@@ -274,3 +274,20 @@ cancellation reason, or change to the underlying Home Assistant entities/history
 
 Add these inside your existing `printer` mapping. The installer validates their
 domains and subscribes them explicitly; no printer service is called.
+
+## Optional computer-aware Samsung display power
+
+The rooted Samsung can use MacCallIndicator's existing heartbeat to select full
+Android display-off after the Mac has stopped reporting for two minutes and the
+panel's own idle timeout has darkened it. Fresh reports restore normal
+backlight-only behavior. The meeting boolean is ignored; app exit, permission
+loss or connectivity loss can also interrupt the heartbeat, so this is not
+proof of a Mac shutdown. A partial CPU wake lock keeps the network recovery
+path alive while the display is off.
+
+See the [Samsung helper setup, controlled-test evidence and rollback](https://github.com/kilinccagatay/wallpanel-android-legacy/blob/lite-motion-core/docs/samsung-computer-display.md).
+The Mac app, dashboard JavaScript and Denver do not need updates for this mode.
+Immediate camera wake after a manual power press remains an
+[explicitly deferred TODO](https://github.com/kilinccagatay/wallpanel-android-legacy/blob/lite-motion-core/docs/samsung-display-todo.md).
+The isolated heartbeat off/on cycle passed; real Mac sleep/shutdown, phone reboot
+and the complete general-feature acceptance gate remain pending.
