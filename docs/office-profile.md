@@ -53,6 +53,12 @@ acceptance is recorded separately; full panel blanking is not yet accepted.
 
 ## Printer camera view
 
+![Actual Samsung printer view during an H2D print](images/samsung-printer-live.png)
+
+This device capture shows the camera, live print telemetry and AMS groups, with
+AMS-HT on the left and the active filament highlighted in a rounded, padded tile.
+
+
 The visible Yazıcı tab retains the internal Diğer route for existing bookmarks.
 It removes the clock/date/weather column and uses the full body for camera plus
 print metrics. Snapshots are requested through the existing authenticated server

@@ -110,7 +110,7 @@ battery long press and display helpers remain unchanged.
 
 ## Dashboard screenshots
 
-The current Panel V2 interface is shown below. These are **800 × 480 browser
+The Denver Panel V2 interface is shown below. These are **800 × 480 browser
 captures of the deployed dashboard with live Home Assistant data**. WallPanel’s
 native battery badge is drawn by Android and is therefore absent from these images.
 
@@ -127,6 +127,18 @@ native battery badge is drawn by Android and is therefore absent from these imag
 | Brightness and color presets | Panel settings |
 | --- | --- |
 | ![Long-press light settings with brightness and color presets](photos/panel-v2/light-dialog-browser.png) | ![Sound, long-press timing, cleaning mode, and reload settings](photos/panel-v2/settings-browser.png) |
+
+### Samsung office panel — live printer view
+
+Actual **1280 × 720 Samsung device capture** during an H2D print: camera image,
+print progress, remaining time, nozzle/bed temperatures, and grouped AMS slots.
+AMS-HT is on the left; the active filament uses a rounded highlight with space
+around its color swatch and labels.
+
+![Samsung H2D printer view during a print, with camera image and rounded active filament highlight](docs/images/samsung-printer-live.png)
+
+See the [office profile guide](docs/office-profile.md#printer-camera-view) for
+camera prerequisites and printer controls.
 
 See the [Panel V2 guide](docs/panel-v2.md) for interaction behavior, configuration,
 and installation.
