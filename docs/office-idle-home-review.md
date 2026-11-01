@@ -13,6 +13,10 @@ brightness reached zero and the existing helper reported Android/driver `0 0`.
 A private screenshot during that dark state shows Odam, rather than Printer,
 with the first calendar day selected. This establishes the tab transition; it
 alone does not prove physical backlight appearance or camera wake reliability.
+The user subsequently confirmed that, after covering the camera, waiting for
+the light to turn off and uncovering it, the awakened panel had returned to
+Odam. This completes the requested off/wake/Home-return observation for one
+cycle; dim-room repetitions, power keys and the wider general gate remain pending.
 The capture contains a work-calendar title and is deliberately not published.
 
 Office asset/configuration backups were kept privately before deployment; the
