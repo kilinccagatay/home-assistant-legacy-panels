@@ -49,3 +49,19 @@ still has outstanding physical/regression observations. See
 
 Sources: [Open-Meteo Weather API](https://open-meteo.com/en/docs),
 [Home Assistant REST sensors](https://www.home-assistant.io/integrations/sensor.rest/).
+
+## Missed update recovery — 2026-11-01
+
+Denver displayed unavailable while the shared HA sensor and Samsung were fresh.
+The tablet clock matched the host; a Denver-only page refresh restored the value.
+The exact missed transport event was not established. Both profiles now perform
+one read-only request per minute for the single configured HA apparent sensor.
+This reads HA's cached state, not the upstream weather provider. Requests have a
+15-second watchdog; disconnected pages do not poll, older samples cannot replace
+newer values, and the existing 30-minute freshness limit still applies.
+
+`tests/feels-like-refresh.test.cjs` simulates a missed event, minute throttling,
+zero/negative readings, late/older data, unavailable state and disconnect without
+issuing household commands. ES5 parsing and the existing panel DOM suite passed.
+See [the reboot/weather acceptance record](reboot-weather-review-2026-11-01.md)
+for remaining physical checks.

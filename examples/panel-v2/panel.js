@@ -1,4 +1,4 @@
-/* Browser application: ES5, no framework or extra polling. Configuration is injected separately. */
+/* Browser application: ES5, no framework; bounded read-only data recovery. Configuration is injected separately. */
 (function () {
   function ready() {
     var cfg = window.PANEL_V2_CONFIG, C = window.PanelV2Core;
@@ -543,6 +543,22 @@
       xhr.open('POST','/api/proxy/api/services/weather/get_forecasts?return_response',true);xhr.setRequestHeader('Content-Type','application/json');xhr.timeout=15000;
       xhr.onload=function(){finish(xhr.status>=200&&xhr.status<300);};xhr.onerror=xhr.ontimeout=xhr.onabort=function(){finish(false);};xhr.send(JSON.stringify({entity_id:cfg.weather,type:'daily'}));
     }
+    var feelsAttempt=new Date().getTime(),feelsPending=false;
+    // Recover a missed attribute update without polling the weather provider or
+    // rebuilding every widget. Both panels read the same single HA sensor.
+    function requestFeelsLike(){
+      var now=new Date().getTime();if(!cfg.outdoorFeelsLike||!connection()||feelsPending||now-feelsAttempt<60000){return;}
+      feelsAttempt=now;feelsPending=true;var generation=connectionGeneration,version=versions[cfg.outdoorFeelsLike]||0,expired=false;
+      var timeout=setTimeout(function(){expired=true;feelsPending=false;scheduleRender();},15000);
+      window.goFetch('/api/proxy/api/states/'+encodeURIComponent(cfg.outdoorFeelsLike)+'?panel_feels='+now,function(error,entry){
+        if(expired){return;}clearTimeout(timeout);feelsPending=false;
+        if(!error&&connection()&&generation===connectionGeneration&&entry&&entry.entity_id===cfg.outdoorFeelsLike){
+          var incoming=Number((entry.attributes||{}).time)||0,current=Number(get(cfg.outdoorFeelsLike).attributes.time)||0;
+          if((!C.available(entry)&&(versions[cfg.outdoorFeelsLike]||0)===version)||(C.available(entry)&&incoming>=current)){cache[cfg.outdoorFeelsLike]={state:entry.state,attributes:entry.attributes||{}};}
+        }
+        scheduleRender();
+      });
+    }
     function updateMeeting(v){var entry=get(cfg.meeting),age=new Date().getTime()/1000-Number(entry.attributes.last_report_epoch||0);v.meeting.classList.toggle('pv2-active',v.name==='Ana'&&connection()&&entry.state==='on'&&age>=-5&&age<40);}
     function render(){
       renderAgenda();renderForecast();syncDialog();syncPowerDialog();syncPrinterCamera();renderPrinterDetails();var active=activeView();
@@ -594,7 +610,7 @@
       })(eid,listeners[eid]);
     }}
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
-    function clockTick(){renderAgenda();renderForecast();requestForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
+    function clockTick(){requestFeelsLike();renderAgenda();renderForecast();requestForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
     function navigated(){for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();clockTick();render();}
     window.addEventListener('hashchange',navigated,false);
     window.addEventListener('screen-navigate',navigated,false);
