@@ -164,7 +164,7 @@
       var b=node('button','pv2-card'+(options.action?' pv2-action':'')+(legacy?' pv2-legacy-light':'')); b.type='button';if(options.kind==='sensor'){b.classList.add('pv2-readonly');}if(options.kind==='sensor'&&cfg.printer&&options.entity===cfg.printer.progress){b.classList.add('pv2-print-progress-card');var progressFill=node('span','pv2-card-progress-fill');progressFill.setAttribute('aria-hidden','true');b.appendChild(progressFill);b.setAttribute('role','progressbar');b.setAttribute('aria-valuemin','0');b.setAttribute('aria-valuemax','100');}
       if(b.classList.contains('pv2-print-progress-card')){var cardIcon=node('span','pv2-card-icon');cardIcon.innerHTML=icon(options.icon);b.appendChild(cardIcon);}else{b.innerHTML=icon(options.icon);}
       var text=node('span','pv2-card-text'), label=node('span','pv2-card-label',options.label), state=node('span','pv2-card-state','Yükleniyor…');
-      text.appendChild(label);text.appendChild(state);b.appendChild(text);if(options.kind==='printer'){b.classList.add('pv2-printer-summary');var track=node('span','pv2-print-track'),fill=node('span','pv2-print-fill');track.setAttribute('aria-hidden','true');track.appendChild(fill);text.appendChild(track);var summaryPercent=node('span','pv2-summary-percent');summaryPercent.setAttribute('aria-hidden','true');b.appendChild(summaryPercent);}parent.appendChild(b);
+      text.appendChild(label);text.appendChild(state);b.appendChild(text);if(options.kind==='printer'){b.classList.add('pv2-printer-summary');var track=node('span','pv2-print-track'),fill=node('span','pv2-print-fill');track.setAttribute('aria-hidden','true');track.appendChild(fill);text.appendChild(track);var summaryPercent=node('span','pv2-summary-percent');summaryPercent.setAttribute('aria-hidden','true');b.appendChild(summaryPercent);var summaryRemaining=node('span','pv2-summary-remaining');summaryRemaining.style.display='none';summaryRemaining.setAttribute('aria-hidden','true');summaryRemaining.appendChild(node('span','pv2-summary-remaining-label','Kalan:'));summaryRemaining.appendChild(node('span','pv2-summary-remaining-value'));b.appendChild(summaryRemaining);}parent.appendChild(b);
       var item={tapTimer:null,button:b,label:label,status:state,options:options,icon:b.querySelector('svg'),view:parent.getAttribute('data-pv2-screen')};cards.push(item);
       function printerPress(){if(!cfg.printer||!cfg.printer.power){if(options.kind==='printer'){navigateScreen(options.destination||'Diğer');}return;}if(item.tapTimer!==null){clearTimeout(item.tapTimer);item.tapTimer=null;printerPowerAction();return;}item.tapTimer=setTimeout(function(){item.tapTimer=null;if(options.kind==='printer'){navigateScreen(options.destination||'Diğer');}},350);}
       C.bindPress(b,function(){
@@ -293,8 +293,8 @@
     }
     function buildPrinterCamera(metrics){
       metrics.classList.add('pv2-printer-metrics');
-      var box=node('section','pv2-printer-camera'),head=node('div','pv2-camera-header'),title=node('span','','Yazıcı Kamerası'),toggle=node('button','pv2-sound pv2-camera-toggle'),image=node('img'),status=node('p','pv2-camera-status','Kamera bekleniyor…');
-      toggle.type='button';toggle.innerHTML=icon('pause');toggle.setAttribute('aria-label','Kamera görüntüsünü duraklat');toggle.title='Kamera görüntüsünü duraklat';image.alt='Yazıcının kamera görüntüsü';image.style.display='none';status.setAttribute('role','status');head.appendChild(title);head.appendChild(toggle);box.appendChild(head);box.appendChild(image);box.appendChild(status);metrics.parentNode.appendChild(box);
+      var box=node('section','pv2-printer-camera'),head=node('div','pv2-camera-header'),title=node('span','','Yazıcı Kamerası'),toggle=node('button','pv2-sound pv2-camera-toggle'),viewport=node('div','pv2-camera-viewport'),image=node('img'),status=node('p','pv2-camera-status','Kamera bekleniyor…');
+      toggle.type='button';toggle.innerHTML=icon('pause');toggle.setAttribute('aria-label','Kamera görüntüsünü duraklat');toggle.title='Kamera görüntüsünü duraklat';image.alt='Yazıcının kamera görüntüsü';image.style.display='none';status.setAttribute('role','status');head.appendChild(title);head.appendChild(toggle);box.appendChild(head);viewport.appendChild(image);viewport.appendChild(status);box.appendChild(viewport);metrics.parentNode.appendChild(box);
       printerCamera={box:box,image:image,status:status,toggle:toggle,enabled:true,active:false,timer:null,generation:0};
       toggle.addEventListener('click',function(){printerCamera.enabled=!printerCamera.enabled;toggle.innerHTML=icon(printerCamera.enabled?'pause':'play');var label=printerCamera.enabled?'Kamera görüntüsünü duraklat':'Kamera görüntüsünü göster';toggle.setAttribute('aria-label',label);toggle.title=label;syncPrinterCamera();},false);
     }
@@ -439,10 +439,15 @@
         detail=!connection()?'Bağlantı yok':printerStatusLabel(state);
         var validProgress=C.available(progress)&&progress.state!==''&&isFinite(value)&&value>=0&&value<=100;
         if(printing&&validProgress&&!officeProfile){detail+=' · '+Math.round(value)+'%';}
-        if(printing&&C.available(remaining)&&remaining.state!==''&&isFinite(minutes)&&minutes>0&&!(officeProfile&&cfg.agenda)){detail+=' · '+Math.ceil(minutes)+' dk';}
+        var validRemaining=C.available(remaining)&&remaining.state!==''&&isFinite(minutes)&&minutes>=0;
+        if(printing&&validRemaining&&!officeProfile){detail+=' · '+(minutes>0?Math.ceil(minutes):'<1')+' dk';}
         var bar=b.querySelector('.pv2-print-track');if(bar){bar.style.display=printing&&validProgress&&!(officeProfile&&cfg.agenda)?'block':'none';bar.firstChild.style.width=(printing&&validProgress?value:0)+'%';}
         var summaryPercentNode=b.querySelector('.pv2-summary-percent'),showPercent=officeProfile&&printing&&validProgress;
         if(summaryPercentNode){setText(summaryPercentNode,showPercent?Math.round(value)+'%':'');summaryPercentNode.style.display=showPercent?'block':'none';}
+        var summaryRemainingNode=b.querySelector('.pv2-summary-remaining'),showRemaining=officeProfile&&printing&&validRemaining,remainingText=showRemaining?(minutes>0?Math.ceil(minutes):'<1')+'dk':'';
+        if(summaryRemainingNode){setText(summaryRemainingNode.lastChild,remainingText);summaryRemainingNode.style.display=showRemaining?'block':'none';}
+        b.setAttribute('data-printer-remaining',showRemaining?(minutes>0?Math.ceil(minutes):'<1')+' dk':'');
+        b.classList.toggle('pv2-has-summary-footer',showPercent||showRemaining);
         b.classList.toggle('pv2-has-percent',showPercent);
         var accent=!connection()?'offline':printerShutdown?'off':printerStartup?'starting':printer.power&&get(printer.power).state==='off'?'off':!printerOnline?'offline':['failed','error'].indexOf(state.state)!==-1?'error':['pause','paused'].indexOf(state.state)!==-1?'paused':['prepare','slicing'].indexOf(state.state)!==-1?'starting':['running','printing'].indexOf(state.state)!==-1?'printing':['finish','finished'].indexOf(state.state)!==-1?'done':state.state==='idle'?'ready':'offline';
         ['off','offline','ready','starting','printing','paused','error','done'].forEach(function(name){b.classList.toggle('pv2-printer-state-'+name,accent===name);});
@@ -480,7 +485,7 @@
       b.disabled=disabled||!!busy[key];b.classList.toggle('pv2-on',on);b.classList.toggle('pv2-unavailable',unavailable);
       b.classList.toggle('pv2-pending',!!busy[key]);b.setAttribute('aria-busy',busy[key]?'true':'false');
       setText(item.label,label);setText(item.status,!connection()?'Bağlantı yok':detail);
-      b.setAttribute('aria-label',label+' · '+detail+(o.kind==='printer'&&b.getAttribute('data-printer-progress')?' · Baskı '+b.getAttribute('data-printer-progress')+'%':''));if(o.ids){b.setAttribute('aria-pressed',on?'true':'false');b.title=o.kind==='roomoff'?'Dokun: oda ışıklarını kapat':'Dokun: aç/kapat · Uzun bas: lamba ayarları';}
+      b.setAttribute('aria-label',label+' · '+detail+(o.kind==='printer'&&b.getAttribute('data-printer-progress')?' · Baskı '+b.getAttribute('data-printer-progress')+'%':'')+(o.kind==='printer'&&b.getAttribute('data-printer-remaining')?' · Kalan süre '+b.getAttribute('data-printer-remaining'):''));if(o.ids){b.setAttribute('aria-pressed',on?'true':'false');b.title=o.kind==='roomoff'?'Dokun: oda ışıklarını kapat':'Dokun: aç/kapat · Uzun bas: lamba ayarları';}
     }
     var conditions={'clear-night':'Açık gece','cloudy':'Bulutlu','exceptional':'Olağan dışı','fog':'Sisli','hail':'Dolu','lightning':'Şimşekli','lightning-rainy':'Gök gürültülü','partlycloudy':'Parçalı bulutlu','pouring':'Sağanak','rainy':'Yağmurlu','snowy':'Karlı','snowy-rainy':'Karla karışık','sunny':'Güneşli','windy':'Rüzgârlı','windy-variant':'Rüzgârlı'};
     function renderAgenda(){

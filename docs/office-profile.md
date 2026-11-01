@@ -57,6 +57,15 @@ acceptance is recorded separately; full panel blanking is not yet accepted.
 
 This device capture shows the camera, live print telemetry and AMS groups, with
 AMS-HT on the left and the active filament highlighted in a rounded, padded tile.
+The camera fills its rounded viewport using aspect-preserving cropping, with
+12px card padding and an 8px gap below the header.
+
+The Home printer tile places a small two-line remaining-time readout at the lower
+left and progress at the lower right. Missing, negative, idle, disconnected or
+powered-off data clears the remaining-time readout. Valid values below one
+minute display `<1dk`; hour/second sensors are converted to minutes.
+
+![Home printer tile with remaining minutes and progress](images/samsung-printer-summary.png)
 
 
 The visible Yazıcı tab retains the internal Diğer route for existing bookmarks.
