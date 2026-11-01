@@ -255,7 +255,13 @@ If status is `failed`, stage is explicitly `idle` and both problem sensors are
 available and `off`, Home and Printer show **Hazır** with the ready accent. The
 old percentage and remaining-time footer stay cleared because no job is active.
 Active, unknown, unavailable or unconfigured corroborating signals retain the
-failure display. There is no time-based suppression of errors, fabricated
+failure display. While the office display still resolves a retained `failed`
+state as a failure, it revalidates the four status/stage/fault readings from HA
+at most once per 10 seconds, with only two requests in flight and a 15-second
+batch timeout. A complete successful batch is applied atomically; newer live
+events and reconnect generations win over late responses. Recovery stops when
+Ready is confirmed. This repairs a missed fault-clear update without polling
+the printer or clearing a real error on a timer. There is no time-based suppression of errors, fabricated
 cancellation reason, or change to the underlying Home Assistant entities/history.
 
 ```json

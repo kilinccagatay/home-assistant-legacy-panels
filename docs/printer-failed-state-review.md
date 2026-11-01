@@ -19,6 +19,28 @@ parse passed. Real hardware faults were not induced. Before the final device cap
 printer began a new job and correctly showed Yazdırılıyor; it was not cancelled
 for this test. Live post-cancellation Ready observation therefore remains pending.
 
+## Follow-up: missed clear event
+
+A later real cancellation still displayed Baskı hatası while fresh HA REST
+readings already showed failed/idle/off/off. A tablet page refresh immediately
+showed Hazır for that same job, demonstrating that the earlier classification
+change alone did not repair retained browser data. The exact missed transport
+event was not established.
+
+The office clock now triggers bounded read-only revalidation while the display
+still resolves failed as an error. A four-reading batch has two requests maximum
+in flight, a 10-second minimum interval and a 15-second timeout. It stops on Ready
+or non-failed/offline/powered-off/startup states. The complete batch commits only
+if connection generation and all live-update versions still match, so a late
+failed snapshot cannot overwrite a newer running job. No error is suppressed
+merely because time elapsed.
+
+The dedicated recovery fixture reproduces a missed fault-clear callback and
+checks current-fault retention, throttling, stop-on-Ready, concurrency and the
+live-state race. Existing office tests and ES5 parse also passed. Actual Samsung
+capture after deployment shows Hazır for the retained failed job; repeating a
+future real cancel without any refresh is still pending.
+
 | Check | Status | Evidence / remaining work |
 | --- | --- | --- |
 | D01 | PENDING | Not repeated on this final deployment; no full general-feature acceptance claim. |
@@ -54,8 +76,8 @@ for this test. Live post-cancellation Ready observation therefore remains pendin
 | H09 | PENDING | Not repeated on this final deployment; no full general-feature acceptance claim. |
 | H10 | PENDING | Not repeated on this final deployment; no full general-feature acceptance claim. |
 | H11 | PENDING | The observed failed/idle/no-fault combination passes fixtures. A new real job started before final capture; live post-cancel Ready confirmation remains pending. |
-| E01 | PASS | Office DOM suite, six installer tests and ES5 parse passed. |
-| E02 | PASS | Served resolver and three mapping keys verified. Actual Samsung captured a new running print; no cancellation/ready claim from that capture. |
+| E01 | PASS | Recovery and office DOM suites, six installer tests and ES5 parse passed. |
+| E02 | PASS | Final resolver/revalidation source verified. Actual Samsung retained-job view shows Hazır; future repeat cancel without refresh remains pending. |
 | E03 | PASS | Only intended source/tests/guides published; private mappings/configuration and work-calendar captures excluded. |
 | E04 | PASS | Guides and intended changes committed/pushed; other physical checks remain pending. |
 

@@ -126,6 +126,29 @@
       // plus both cleared fault signals may return to Ready; unknown stays failed.
       return C.available(stage)&&stage.state==='idle'&&C.available(error)&&error.state==='off'&&C.available(hms)&&hms.state==='off'?'idle':'failed';
     }
+    var printerFailureAttempt=0,printerFailurePending=false;
+    function requestPrinterFailureState(){
+      var p=cfg.printer||{},now=new Date().getTime();
+      if(!officeProfile||!connection()||printerFailurePending||!p.stage||!p.printError||!p.hmsErrors||get(p.status).state!=='failed'||printerDisplayState(get(p.status))==='idle'||printerStartup||printerShutdown||(p.power&&get(p.power).state!=='on')||now-printerFailureAttempt<10000){return;}
+      printerFailureAttempt=now;printerFailurePending=true;
+      var ids=[p.status,p.stage,p.printError,p.hmsErrors],generation=connectionGeneration,expected={},results={},index=0,done=0,valid=true,expired=false;
+      ids.forEach(function(id){expected[id]=versions[id]||0;});
+      var timeout=setTimeout(function(){expired=true;printerFailurePending=false;},15000);
+      function next(){
+        if(expired||index>=ids.length){return;}var id=ids[index++];
+        window.goFetch('/api/proxy/api/states/'+encodeURIComponent(id)+'?panel_failure='+now,function(error,entry){
+          if(expired){return;}if(error||!entry||entry.entity_id!==id){valid=false;}else{results[id]=entry;}
+          done++;
+          if(done===ids.length){
+            clearTimeout(timeout);printerFailurePending=false;
+            if(valid&&connection()&&generation===connectionGeneration&&ids.every(function(eid){return (versions[eid]||0)===expected[eid];})){
+              ids.forEach(function(eid){var e=results[eid];cache[eid]={state:e.state,attributes:e.attributes||{}};});scheduleRender();
+            }
+          }else{next();}
+        });
+      }
+      next();next();
+    }
     function printerStatusLabel(state){
       if(!connection()){return 'Bağlantı yok';}
       if(printerShutdown){return 'Kapatılıyor…';}
@@ -624,7 +647,7 @@
       })(eid,listeners[eid]);
     }}
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
-    function clockTick(){requestFeelsLike();renderAgenda();renderForecast();requestForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
+    function clockTick(){requestPrinterFailureState();requestFeelsLike();renderAgenda();renderForecast();requestForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(get(cfg.countdown).state==='on'){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
     function navigated(){for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();clockTick();render();}
     window.addEventListener('hashchange',navigated,false);
     window.addEventListener('screen-navigate',navigated,false);
