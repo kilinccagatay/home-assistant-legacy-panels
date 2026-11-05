@@ -202,7 +202,11 @@ NODE_PATH=/tmp/denver-panel-ui-tests/node_modules node tests/panel-ui.test.cjs
 
 This checks live modal brightness/color, drag protection, cached menu reuse,
 250 ms Fast timing/migration, shared feedback, automatic close only after successful
-presets, failure notices, Home display naming, and tab activation from cached state.
+presets, failure notices, stable audio-feedback rows, sound preference persistence,
+Home display naming, and tab activation from cached state.
+
+The [2026-11-01 visual review](ui-review-2026-11-01.md) includes actual Denver/Samsung
+settings captures, agenda geometry and the complete PASS/FAIL/PENDING/N/A record.
 
 Run `node tests/panel-v2.test.cjs` for compact state merging, device capabilities,
 group behavior, robot state transitions, countdown timing, and touch/long-press
@@ -241,3 +245,7 @@ preferences were preserved. Clock/date/audio remain in HoaryDash in this build.
 See the [native fix and installation/validation notes](https://github.com/kilinccagatay/wallpanel-android-legacy/blob/lite-motion-core/docs/first-touch-fix.md).
 Use an APK with the same signing certificate and an in-place update; do not clear
 app data. The root-helper path is firmware-specific, not a generic Android fix.
+
+The [outside apparent-temperature guide](outdoor-feels-like.md) covers the optional
+Open-Meteo REST sensor, regional location privacy, negative/zero values and the
+matching three-row inside/outside layout.
