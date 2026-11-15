@@ -31,6 +31,15 @@ function close(){d.querySelector('.pv2-close').click();}
   d.dispatchEvent(new w.Event('DOMContentLoaded'));await sleep(25);
   for(const e of Object.values(states)){feed(e.entity_id,e.state,e.attributes);}await sleep(25);
   assert.equal(d.querySelector('.navbar-label').textContent,'EVİM','visible Home name changes without changing the Ana route');
+  assert.equal(d.querySelector('#panel-v2-Odalar').style.display,'none','inactive Denver view is out of the render tree');
+  const homeCards=d.querySelector('#panel-v2 .pv2-controls');
+  const cardWrites=[];
+  const observer=new w.MutationObserver(records=>cardWrites.push(...records));
+  observer.observe(homeCards,{attributes:true,subtree:true,childList:true,characterData:true});
+  feed(cfg.indoorHumidity,'43',{});
+  await sleep(30);
+  observer.disconnect();
+  assert.equal(cardWrites.length,0,'weather updates do not rewrite unchanged cards');
   feed(cfg.indoorHumidity,'42.3',{});await sleep(25);assert.equal(d.querySelector('#panel-v2 .pv2-indoor-humidity-value').textContent,'42,3%','humidity keeps its value and unit after symbol layout changes');
   for(const value of [-12.5,0,8.1]){
    feed(cfg.outdoorFeelsLike,String(value),{time:Date.now()/1000});feed(cfg.weather,'cloudy',{temperature:value});await sleep(25);

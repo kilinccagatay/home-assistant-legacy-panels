@@ -8,7 +8,8 @@
     if (!cfg || !C || !home || document.getElementById('panel-v2')) { return; }
     var cards = [];
     var printerCamera=null,powerDialogState=null,printerDetails=null;
-    var renderQueued=false,lastConnection=null;
+    var renderQueued=false,lastConnection=null,paintedView=null;
+    var denverTabs=['Ana','Mutfak','Giriş','Odalar','Robot'], denverTabButtons=[];
     var ha = window.PanelV2HomeAssistant.create(window, C, cfg, entityChanged);
     var get = ha.get, connection = ha.connected;
     function startTimer(callback, delay) { return window.setTimeout(callback, delay); }
@@ -39,6 +40,15 @@
       confirmPower: function (id) { openPowerDialog({label:'Yazıcıyı kapat?',entity:id,printer:true}); }
     }) : null;
     function navigateScreen(name){
+      if(!officeProfile&&denverTabButtons.length&&denverTabs.indexOf(name)>=0){
+        var hash='#screen-'+encodeURIComponent(name);
+        if(window.location.hash!==hash){
+          try{window.history.pushState({},'',hash);}
+          catch(error){window.location.hash=hash;}
+        }
+        navigated();
+        return;
+      }
       var screens=document.querySelectorAll('.screen');
       for(var i=0;i<screens.length;i++){if(screens[i].id==='screen-'+name){
         if(typeof window.navigateTo==='function'){window.navigateTo(i);}else{window.location.hash='#screen-'+encodeURIComponent(name);}
@@ -256,6 +266,23 @@
       return item;
     }
     var navLabels=document.querySelectorAll('.navbar-label');for(var ni=0;ni<navLabels.length;ni++){if(navLabels[ni].textContent.trim().toLowerCase()==='ana'){setText(navLabels[ni],officeProfile?'ODAM':'EVİM');}else if(officeProfile&&navLabels[ni].textContent.trim().toLowerCase()==='diğer'){setText(navLabels[ni],'YAZICI');}}
+    if(!officeProfile&&typeof window.navigateTo==='function'){
+      denverTabs.forEach(function(name,index){
+        var label=navLabels[index];
+        if(!label){return;}
+        var tab=label.parentNode;
+        denverTabButtons[index]=tab;
+        // Handle touchend directly on legacy Crosswalk. Do not wait for
+        // the synthetic click on HoaryDash's non-button navigation item.
+        tab.removeAttribute('onclick');
+        tab.setAttribute('role','button');
+        tab.tabIndex=0;
+        C.bindPress(tab,function(){navigateScreen(name);},null);
+        tab.addEventListener('keydown',function(event){
+          if(event.keyCode===13||event.keyCode===32){event.preventDefault();navigateScreen(name);}
+        },false);
+      });
+    }
     document.body.classList.add('panel-v2');if(officeProfile){document.body.classList.add('panel-v2-office');if(cfg.nativeBatteryBadge===false){document.body.classList.add('pv2-no-battery');}}
     if(cfg.themeStyle==='tessera'){
       document.body.classList.add('pv2-tessera');
@@ -288,7 +315,7 @@
       var meeting=node('div','pv2-meeting');meeting.innerHTML='<span class="pv2-meeting-dot"></span>Toplantı';overview.appendChild(meeting);
       var trigger=node('button','pv2-settings-trigger');trigger.type='button';trigger.innerHTML=icon('settings');trigger.setAttribute('aria-label','Panel Ayarları');trigger.title='Panel Ayarları';trigger.addEventListener('click',function(){openPanelSettings();},false);overview.appendChild(trigger);
       body.appendChild(overview);body.appendChild(controls);root.appendChild(body);screen.appendChild(root);
-      views.push({name:name,status:status,indoor:indoorValue,humidity:humidityValue,humidityIcon:humidityIcon,feels:feelsValue,feelsIcon:feelsIcon,clock:clock,date:date,weekday:weekday,temperature:temperature,condition:condition,weatherIcon:weatherIcon,previousWeatherIcon:'',meeting:meeting});return controls;
+      views.push({name:name,panel:root,status:status,indoor:indoorValue,humidity:humidityValue,humidityIcon:humidityIcon,feels:feelsValue,feelsIcon:feelsIcon,clock:clock,date:date,weekday:weekday,temperature:temperature,condition:condition,weatherIcon:weatherIcon,previousWeatherIcon:'',meeting:meeting});return controls;
     }
     var agendaBox=null,agendaHeading=null,agendaList=null,agendaSignature=null,agendaRenderedDay=null;
     var forecastBox=null,forecastList=null,forecastNote=null,forecastSignature='';
@@ -708,7 +735,6 @@
         if(countdown.active){label=remaining===null?'Geri Sayım':C.timeLabel(remaining);detail='İptal için dokun';on=true;}
         else{detail='1 dakika sonra kapat';}
         disabled=disabled||!countdown.available;key='countdown';
-        b.classList.toggle('pv2-counting',on);
       }else{
         var group=controlsModel.lightGroup(o.ids);on=group.on>0;unavailable=group.ready===0;
         if(unavailable){detail='Bağlantı yok';}
@@ -722,16 +748,26 @@
         var entry=get(item.lightId),brightness=C.brightness(entry);
         dimmable=C.capabilities(entry).dim;
         if(connection()&&on&&dimmable&&brightness.label!=='—'){level=brightness.value;}
+        if(level!==null&&level<100){detail+=' · '+level+'%';}
+      }
+      var connected=connection(),busy=controlsModel.isBusy(key);
+      if(!officeProfile&&['printer','printer-status','power','sensor'].indexOf(o.kind)<0){
+        // Compare visible output, including pending state and brightness.
+        var signature=JSON.stringify([label,detail,on,unavailable,disabled,connected,busy,level,tint]);
+        if(item.paintSignature===signature){return;}
+        item.paintSignature=signature;
+      }
+      if(o.kind==='alloff'){b.classList.toggle('pv2-counting',on);}
+      if(item.lightFill){
         b.classList.toggle('pv2-light-level',level!==null);
         item.lightFill.style.width=(level===null?0:level)+'%';
         item.lightFill.style.backgroundColor=level!==null&&tint&&cfg.themeStyle!=='tessera'?tint.background:'';
-        if(level!==null&&level<100){detail+=' · '+level+'%';}
       }
       if(tint&&cfg.themeStyle==='tessera'){item.icon.style.backgroundColor=tint.foreground;tint=null;}else if(item.icon){item.icon.style.backgroundColor='';}
       b.style.backgroundColor=tint&&level===null?tint.background:'';b.style.borderColor=tint?tint.border:'';if(item.icon){item.icon.style.color=tint?tint.foreground:'';}item.status.style.color=tint?tint.foreground:'';
-      b.disabled=disabled||controlsModel.isBusy(key);b.classList.toggle('pv2-on',on);b.classList.toggle('pv2-unavailable',unavailable);
-      b.classList.toggle('pv2-pending',controlsModel.isBusy(key));b.setAttribute('aria-busy',controlsModel.isBusy(key)?'true':'false');
-      setText(item.label,label);setText(item.status,!connection()?'Bağlantı yok':detail);
+      b.disabled=disabled||busy;b.classList.toggle('pv2-on',on);b.classList.toggle('pv2-unavailable',unavailable);
+      b.classList.toggle('pv2-pending',busy);b.setAttribute('aria-busy',busy?'true':'false');
+      setText(item.label,label);setText(item.status,!connected?'Bağlantı yok':detail);
       b.setAttribute('aria-label',label+' · '+detail+(o.kind==='printer'&&b.getAttribute('data-printer-progress')?' · Baskı '+b.getAttribute('data-printer-progress')+'%':'')+(o.kind==='printer'&&b.getAttribute('data-printer-remaining')?' · Kalan süre '+b.getAttribute('data-printer-remaining'):''));if(o.ids){b.setAttribute('aria-pressed',on?'true':'false');b.title=(o.kind==='roomoff'?'Dokun: oda ışıklarını kapat':'Dokun: aç/kapat')+' · Basılı tut ve sürükle: parlaklık · Çift dokun: lamba ayarları';}
     }
     var conditions={'clear-night':'Açık gece','cloudy':'Bulutlu','exceptional':'Olağan dışı','fog':'Sisli','hail':'Dolu','lightning':'Şimşekli','lightning-rainy':'Gök gürültülü','partlycloudy':'Parçalı bulutlu','pouring':'Sağanak','rainy':'Yağmurlu','snowy':'Karlı','snowy-rainy':'Karla karışık','sunny':'Güneşli','windy':'Rüzgârlı','windy-variant':'Rüzgârlı'};
@@ -789,8 +825,31 @@
       }
     }
     function updateMeeting(v){var entry=get(cfg.meeting),age=new Date().getTime()/1000-Number(entry.attributes.last_report_epoch||0);v.meeting.classList.toggle('pv2-active',v.name==='Ana'&&connection()&&entry.state==='on'&&age>=-5&&age<40);}
+    function showDenverView(active){
+      if(officeProfile||active===paintedView){return;}
+      paintedView=active;
+      for(var i=0;i<views.length;i++){
+        var view=views[i], selected=view.name===active;
+        if(denverTabButtons.length){
+          var screen=view.panel.parentNode;
+          screen.hidden=!selected;
+          screen.style.display=selected?'':'none';
+          screen.style.setProperty('transform','none','important');
+          screen.style.setProperty('-webkit-transform','none','important');
+          if(selected){screen.parentNode.scrollLeft=0;}
+        }else{
+          view.panel.style.display=selected?'':'none';
+        }
+      }
+      denverTabButtons.forEach(function(button,index){
+        var selected=denverTabs[index]===active;
+        button.classList.toggle('active',selected);
+        button.classList.toggle('highlight',selected);
+      });
+    }
     function render(){
       renderAgenda();renderForecast();syncDialog();syncPowerDialog();syncPrinterCamera();renderPrinterDetails();var active=activeView();
+      showDenverView(active);
       for(var i=0;i<cards.length;i++){if(cards[i].view===active){drawCard(cards[i]);}}
       var readings=weather.readings(),shownWeather=readings.outdoor,shownFeels=readings.feels,t=shownWeather.value,valid=t!==null;
       var weatherName=shownWeather.condition==='sunny'?'sun':shownWeather.condition==='clear-night'?'moon':(/rain|pouring|hail|snow/.test(shownWeather.condition)?'rain':'cloud');
@@ -821,6 +880,11 @@
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
     function clockTick(){syncRobotMap();weather.tick(!document.hidden&&activeView()==='Ana');if(officeProfile&&printerModel){printerModel.tick();}renderAgenda();renderForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(controlsModel.countdown(now.getTime()).active){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
     function navigated(){if(agendaList){agendaList.scrollTop=0;}if(robotRoomSelection){robotRoomSelection.reset();}closeQuickDim();for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();clockTick();render();}
+    if(denverTabButtons.length){
+      window.navigateTo=function(index){
+        if(denverTabs[index]){navigateScreen(denverTabs[index]);}
+      };
+    }
     window.addEventListener('hashchange',navigated,false);
     window.addEventListener('screen-navigate',navigated,false);
     function resetAgendaDay(){if(agendaModel){agendaList.scrollTop=0;agendaModel.reset();agendaSignature=null;renderAgenda();}}

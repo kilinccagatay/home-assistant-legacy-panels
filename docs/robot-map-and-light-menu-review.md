@@ -149,3 +149,23 @@ no device commands. This publication run changes no installed assets or native A
 Previously documented physical-device checks retain their scope; the full physical
 regression remains PENDING. No robot, kitchen light, printer or countdown was
 actuated during publication verification.
+
+## Denver active-tab rendering — 2026-11-15
+
+Denver displays only the selected view. Its tab controller selects the screen
+directly and updates the route and tab highlight. Unchanged cards skip DOM
+writes using a signature of their displayed state, including connection,
+brightness and pending commands. The office profile retains its own renderer.
+
+On Denver Build 9, short CPU samples using /proc/stat gave 31.8% idle,
+99.2% for Evim/Odalar test inputs and 74.7% around Robot entry before the
+change. The final warm samples were 30.1%, 98.5% and 66.6%. Mediaserver stayed
+near 8%. Not every injected tap was independently verified in the timing
+sequence. These numbers are directional, with no verified improvement in
+tap-to-visible latency. The intermediate version failed the user's touch test.
+The final version opened Odalar in a device capture after an injected tap.
+The user confirmed that tab switches felt noticeably faster on the installed
+version. Full device regression remains pending.
+
+The panel DOM test verified hidden inactive content and zero card mutations
+after a humidity update. No camera setting, APK or robot state was changed.
