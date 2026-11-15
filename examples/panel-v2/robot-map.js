@@ -1,35 +1,42 @@
 /* Read-only robot map/progress polling; never owns or sends vacuum commands. */
 (function(root){
   function create(io){
-    var active=false,generation=0,timer=null,telemetryTimer=null;
+    var active=false,generation=0,timer=null,telemetryTimer=null,requests=[];
     function validPercent(entry){
       var raw=entry&&entry.state;
       if(raw===null||raw===undefined||String(raw).trim()===''){return null;}
       var n=Number(raw);return isFinite(n)&&n>=0&&n<=100?Math.round(n):null;
     }
+    function request(start,callback){
+      var item={cancel:null,done:false};requests.push(item);
+      item.cancel=start(function(){item.done=true;var i=requests.indexOf(item);if(i>=0){requests.splice(i,1);}callback.apply(null,arguments);});
+    }
     function poll(expected){
       if(!active||expected!==generation){return;}
-      io.fetchProgress(function(error,entry){
-        if(active&&expected===generation){io.progress(error?null:validPercent(entry));}
+      var left=2;
+      function complete(){if(--left===0&&active&&expected===generation){timer=io.setTimeout(function(){poll(expected);},15000);}}
+      request(io.fetchProgress,function(error,entry){
+        if(active&&expected===generation){io.progress(error?null:validPercent(entry));}complete();
       });
-      io.fetchMap(function(error,entry){
-        if(!active||expected!==generation){return;}
-        if(error||!entry||entry.state==='unavailable'||entry.state==='unknown'){
-          io.unavailable('Harita alınamadı');
-        }else{io.frame(entry.state);}
+      request(io.fetchMap,function(error,entry){
+        if(active&&expected===generation){
+          if(error||!entry||entry.state==='unavailable'||entry.state==='unknown'){io.unavailable('Harita alınamadı');}
+          else{io.frame(entry.state,entry);}
+        }complete();
       });
-      timer=io.setTimeout(function(){poll(expected);},15000);
     }
     function pollTelemetry(expected){
       if(!io.fetchTelemetry||!active||expected!==generation){return;}
-      io.fetchTelemetry(function(entries){if(active&&expected===generation){io.telemetry(entries);}});
-      telemetryTimer=io.setTimeout(function(){pollTelemetry(expected);},5000);
+      request(io.fetchTelemetry,function(entries){
+        if(active&&expected===generation){io.telemetry(entries);telemetryTimer=io.setTimeout(function(){pollTelemetry(expected);},5000);}
+      });
     }
     return {sync:function(visible,connected){
       var next=!!visible&&!!connected;
       if(next===active){if(visible&&!connected){io.unavailable('Home Assistant bağlantısı yok');}return;}
       active=next;generation++;
       io.clearTimeout(timer);timer=null;io.clearTimeout(telemetryTimer);telemetryTimer=null;
+      var old=requests;requests=[];old.forEach(function(item){if(!item.done&&typeof item.cancel==='function'){item.cancel();}});
       if(active){poll(generation);pollTelemetry(generation);}else{io.clear();io.progress(null);if(visible){io.unavailable('Home Assistant bağlantısı yok');}}
     },percent:validPercent};
   }
@@ -44,8 +51,8 @@
     return matches.length===1?matches[0]:null;
   }
   function createSelection(io){
-    var first=null,timer=null,epoch=0;
-    function reset(){epoch++;first=null;io.clearTimeout(timer);timer=null;}
+    var first=null,timer=null,epoch=0,cancelRequest=null;
+    function reset(){epoch++;if(typeof cancelRequest==='function'){cancelRequest();cancelRequest=null;}first=null;io.clearTimeout(timer);timer=null;}
     function tap(room,x,y){
       if(!room){reset();return;}
       var now=io.now();
@@ -55,8 +62,8 @@
         return;
       }
       reset();var version=epoch,ticket={room:room,x:x,y:y,at:now,ready:false,data:null,done:null};first=ticket;
-      timer=io.setTimeout(function(){if(first===ticket){first=null;}},350);
-      io.fetch(function(data){if(version!==epoch){return;}ticket.ready=true;ticket.data=data;if(ticket.done){ticket.done(data);ticket.done=null;}});
+      timer=io.setTimeout(function(){if(first===ticket){reset();}},350);
+      cancelRequest=io.fetch(function(data){if(version!==epoch){return;}ticket.ready=true;ticket.data=data;if(ticket.done){ticket.done(data);ticket.done=null;}});
     }
     return {tap:tap,reset:reset};
   }

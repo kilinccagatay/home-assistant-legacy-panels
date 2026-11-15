@@ -8,7 +8,7 @@
     if (!cfg || !C || !home || document.getElementById('panel-v2')) { return; }
     var cards = [];
     var printerCamera=null,powerDialogState=null,printerDetails=null;
-    var renderQueued=false,lastConnection=null,paintedView=null;
+    var renderQueued=false,lastConnection=null,paintedView=null,navTimer=null,robotReadyAt=0;
     var denverTabs=['Ana','Mutfak','Giriş','Odalar','Robot'], denverTabButtons=[];
     var ha = window.PanelV2HomeAssistant.create(window, C, cfg, entityChanged);
     var get = ha.get, connection = ha.connected;
@@ -381,11 +381,12 @@
         robotMap=window.PanelV2RobotMap.create({
           fetchTelemetry:function(done){
             var ids=[cfg.vacuum,cfg.robotActive,cfg.robotStatus].filter(function(id){return !!id;}),left=ids.length,entries=[];
-            ids.forEach(function(id){var version=ha.version(id);ha.fetchState(id,'robot_status',new Date().getTime(),function(error,entry){if(!error&&entry&&ha.version(id)===version){entries.push({id:id,entry:entry,version:version});}left--;if(!left){done(entries);}});});
+            var cancels=ids.map(function(id){var version=ha.version(id);return ha.fetchViewState(id,'robot_status',new Date().getTime(),function(error,entry){if(!error&&entry&&ha.version(id)===version){entries.push({id:id,entry:entry,version:version});}left--;if(!left){done(entries);}});});
+            return function(){cancels.forEach(function(cancel){if(typeof cancel==='function'){cancel();}});};
           },
           telemetry:function(entries){entries.forEach(function(item){if(ha.version(item.id)===item.version){ha.update(item.id,item.entry);}});scheduleRender();},
-          fetchProgress:function(done){if(!cfg.robotProgress){done(null,null);return;}ha.fetchState(cfg.robotProgress,'robot_progress',new Date().getTime(),done);},
-          fetchMap:function(done){ha.fetchState(cfg.robotMap,'robot_map',new Date().getTime(),done);},
+          fetchProgress:function(done){if(!cfg.robotProgress){done(null,null);return;}return ha.fetchViewState(cfg.robotProgress,'robot_progress',new Date().getTime(),done);},
+          fetchMap:function(done){return ha.fetchViewState(cfg.robotMap,'robot_map',new Date().getTime(),done);},
           progress:function(value){robotProgressValue=value;renderRobotProgress();},
           frame:function(stamp){
             clearImage();var expected=imageGeneration;
@@ -416,7 +417,7 @@
       }
     }
     function renderRobotProgress(){if(robotProgress){setText(robotProgress,connection()&&controlsModel.robot().active&&robotProgressValue!==null?'· Temizlik %'+robotProgressValue:'');}}
-    function syncRobotMap(){if(robotRoomSelection&&(!connection()||document.hidden||activeView()!=='Robot')){robotRoomSelection.reset();}if(robotMap){robotMap.sync(activeView()==='Robot'&&!document.hidden,connection());}}
+    function syncRobotMap(){if(robotRoomSelection&&(!connection()||document.hidden||activeView()!=='Robot')){robotRoomSelection.reset();}if(robotMap){robotMap.sync(activeView()==='Robot'&&!document.hidden&&Date.now()>=robotReadyAt,connection());}}
     function addAgenda(controls){
         agendaBox=node('section','pv2-agenda');agendaBox.setAttribute('aria-label','İş takvimi');
         // This is read-only kiosk content. Legacy Crosswalk can crash in its
@@ -845,16 +846,16 @@
     function updateMeeting(v){var entry=get(cfg.meeting),age=new Date().getTime()/1000-Number(entry.attributes.last_report_epoch||0);v.meeting.classList.toggle('pv2-active',v.name==='Ana'&&connection()&&entry.state==='on'&&age>=-5&&age<40);}
     function showDenverView(active){
       if(officeProfile||active===paintedView){return;}
-      paintedView=active;
+      var previous=paintedView;paintedView=active;
       for(var i=0;i<views.length;i++){
         var view=views[i], selected=view.name===active;
+        if(previous&&view.name!==previous&&!selected){continue;}
         if(denverTabButtons.length){
           var screen=view.panel.parentNode;
           screen.hidden=!selected;
           screen.style.display=selected?'':'none';
           screen.style.setProperty('transform','none','important');
           screen.style.setProperty('-webkit-transform','none','important');
-          if(selected){screen.parentNode.scrollLeft=0;}
         }else{
           view.panel.style.display=selected?'':'none';
         }
@@ -892,12 +893,19 @@
     function entityChanged(id, state, fromSocket) {
       controlsModel.brightnessChanged(id);
       if (printerModel) { printerModel.entityChanged(id, state, fromSocket); }
-      scheduleRender();
+      if(officeProfile){scheduleRender();return;}
+      var active=activeView();
+      var shared=[cfg.weather,cfg.indoorTemperature,cfg.indoorHumidity,cfg.outdoorFeelsLike];
+      if(shared.indexOf(id)>=0||modalIds.indexOf(id)>=0||
+        (active==='Ana'&&(id===cfg.meeting||id===cfg.countdown))||
+        ((active==='Ana'||active==='Robot')&&[cfg.vacuum,cfg.robotActive,cfg.robotStatus].indexOf(id)>=0)||
+        cards.some(function(card){return card.view===active&&card.options.ids&&card.options.ids.indexOf(id)>=0;})){scheduleRender();}
     }
     ha.start();
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
     function clockTick(){syncRobotMap();weather.tick(!document.hidden&&activeView()==='Ana');if(officeProfile&&printerModel){printerModel.tick();}renderAgenda();renderForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(controlsModel.countdown(now.getTime()).active){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
-    function navigated(){if(agendaList){agendaList.scrollTop=0;}if(robotRoomSelection){robotRoomSelection.reset();}closeQuickDim();for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();clockTick();render();}
+    function updateVisibleClock(){var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}views.forEach(function(v){if(v.name===active){setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);}});}
+    function navigated(){clearTimeout(navTimer);robotReadyAt=Date.now()+200;if(robotMap){robotMap.sync(false,connection());}showDenverView(activeView());updateVisibleClock();if(agendaList){agendaList.scrollTop=0;}if(robotRoomSelection){robotRoomSelection.reset();}closeQuickDim();for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();scheduleRender();navTimer=setTimeout(function(){clockTick();scheduleRender();},210);}
     if(denverTabButtons.length){
       window.navigateTo=function(index){
         if(denverTabs[index]){navigateScreen(denverTabs[index]);}

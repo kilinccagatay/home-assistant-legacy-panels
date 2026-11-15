@@ -27,6 +27,21 @@
       host.goFetch('/api/proxy/api/states/' + encodeURIComponent(id) + '?panel_' + reason + '=' + timestamp, done);
     }
 
+    // View-owned reads expose a real cancellation handle. Global state recovery
+    // deliberately keeps the host transport and is not cancelled on navigation.
+    function readJSON(url, done) {
+      var xhr=new host.XMLHttpRequest(),finished=false;
+      function finish(error,value){if(finished){return;}finished=true;done(error,value);}
+      xhr.open('GET',url,true);xhr.timeout=10000;
+      xhr.onload=function(){var value;try{value=JSON.parse(xhr.responseText);}catch(error){finish(error);return;}finish(xhr.status>=200&&xhr.status<300?null:new Error('Read failed'),value);};
+      xhr.onerror=xhr.ontimeout=function(){finish(new Error('Read failed'));};
+      xhr.onabort=function(){finished=true;};xhr.send();
+      return function(){finished=true;xhr.abort();};
+    }
+    function fetchViewState(id, reason, timestamp, done) {
+      return readJSON('/api/proxy/api/states/'+encodeURIComponent(id)+'?panel_'+reason+'='+timestamp,done);
+    }
+
     function fetchForecast(id, done) {
       var xhr = new host.XMLHttpRequest();
       xhr.open('POST', '/api/proxy/api/services/weather/get_forecasts?return_response', true);
@@ -54,6 +69,7 @@
       xhr.onload=function(){var rooms=null;try{if(xhr.status>=200&&xhr.status<300){var body=JSON.parse(xhr.responseText),maps=body.service_response[config.vacuum].maps;maps.forEach(function(map){if(maps.length===1&&map.flag===config.robotMapFlag){rooms=map.rooms;}});}}catch(ignore){}finish(rooms);};
       xhr.onerror=xhr.ontimeout=xhr.onabort=function(){finish(null);};
       xhr.send(JSON.stringify({entity_id:config.vacuum}));
+      return function(){finished=true;xhr.abort();};
     }
 
     function robotMapFrame(id, timestamp) {
@@ -161,7 +177,7 @@
     return {
       start: start, get: get, update: update, version: version, connected: connected,
       generation: function () { return generation; },
-      call: call, fetchState: fetchState, fetchForecast: fetchForecast, cameraFrame: cameraFrame, robotMapFrame: robotMapFrame, fetchRobotRooms: fetchRobotRooms
+      call: call, fetchState: fetchState, fetchViewState: fetchViewState, readJSON: readJSON, fetchForecast: fetchForecast, cameraFrame: cameraFrame, robotMapFrame: robotMapFrame, fetchRobotRooms: fetchRobotRooms
     };
   }
   root.PanelV2HomeAssistant = {create: create};
