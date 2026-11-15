@@ -695,6 +695,18 @@ body.panel-v2.pv2-tessera.panel-v2-office .pv2-overview .pv2-settings-trigger { 
 .pv2-tessera .pv2-light-dialog-simple .pv2-setting-row output { margin-bottom:8px; }
 .pv2-tessera .pv2-robot-room-dialog { width:420px; padding:20px; border-radius:24px; background:linear-gradient(145deg,#38598d,#142b50); border-color:#9ab6db; }
 .pv2-room-confirm-message { font-size:22px; line-height:30px; margin:20px 0 24px; color:#f5f7ff; }
+.pv2-room-loading:before {
+  content:""; display:inline-block; width:16px; height:16px; margin-right:8px;
+  vertical-align:-2px; border:2px solid #8da9d0; border-top-color:#f5f7ff;
+  border-radius:50%;
+  -webkit-animation:pv2-room-spin .8s linear infinite;
+  animation:pv2-room-spin .8s linear infinite;
+}
+@-webkit-keyframes pv2-room-spin { to { -webkit-transform:rotate(360deg); } }
+@keyframes pv2-room-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) {
+  .pv2-room-loading:before { -webkit-animation:none; animation:none; }
+}
 .pv2-room-confirm-actions { display:-webkit-flex; display:flex; margin:0 -4px; }
 .pv2-room-confirm-actions button { -webkit-flex:1; flex:1; min-height:48px; margin:0 4px; border:1px solid #91a9cc; border-radius:16px; background:#203d67; color:#f5f7ff; font:600 16px "Panel SF Rounded",Arial,sans-serif; }
 .pv2-room-confirm-actions .pv2-room-confirm-start { background:#d6f1e5; color:#183b32; border-color:#d6f1e5; }
