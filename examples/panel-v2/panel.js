@@ -8,7 +8,7 @@
     if (!cfg || !C || !home || document.getElementById('panel-v2')) { return; }
     var cards = [];
     var printerCamera=null,powerDialogState=null,printerDetails=null;
-    var renderQueued=false,lastConnection=null,paintedView=null;
+    var renderQueued=false,lastConnection=null,paintedView=null,navTimer=null,robotReadyAt=0;
     var denverTabs=['Ana','Mutfak','Giriş','Odalar','Robot'], denverTabButtons=[];
     var ha = window.PanelV2HomeAssistant.create(window, C, cfg, entityChanged);
     var get = ha.get, connection = ha.connected;
@@ -355,7 +355,7 @@
       robotProgress=node('span','pv2-robot-progress');summary.appendChild(robotProgress);
       var workspace=node('div','pv2-robot-workspace'),mapCard=node('section','pv2-robot-map-card'),tools=node('div','pv2-robot-actions');
       mapCard.setAttribute('aria-label','Robot haritası');tools.setAttribute('aria-label','Robot komutları');tools.setAttribute('data-pv2-screen','Robot');
-      var canvas=node('canvas','pv2-robot-map-image'),status=node('div','pv2-robot-map-status','Harita kaynağı ayarlanmadı'),updated=node('div','pv2-robot-map-updated');
+      var canvas=node(cfg.preparedRobotMap?'img':'canvas','pv2-robot-map-image'),status=node('div','pv2-robot-map-status','Harita kaynağı ayarlanmadı'),updated=node('div','pv2-robot-map-updated');
       canvas.setAttribute('role','img');canvas.setAttribute('aria-label','Robotun son haritası, 180 derece döndürülmüş');canvas.style.display='none';
       mapCard.appendChild(canvas);mapCard.appendChild(status);mapCard.appendChild(updated);workspace.appendChild(mapCard);workspace.appendChild(tools);screen.appendChild(workspace);
       ['start','pause','dock'].forEach(function(kind){
@@ -368,27 +368,57 @@
         robotRoomSelection=window.PanelV2RobotMap.createSelection({now:function(){return new Date().getTime();},setTimeout:startTimer,clearTimeout:stopTimer,fetch:ha.fetchRobotRooms,open:openRobotRoomDialog});
         window.PanelV2RobotMap.bindTaps(canvas,function(x,y){
           if(canvas.style.display==='none'||!connection()||activeView()!=='Robot'){robotRoomSelection.reset();return;}
-          var point=window.PanelV2RobotMap.pixelAt(x,y,canvas.getBoundingClientRect(),canvas.width,canvas.height);
-          var room=point?window.PanelV2RobotMap.roomAt(canvas.getContext('2d').getImageData(point.x,point.y,1,1).data,cfg.robotRooms):null;
+          // IMG.width/height are rendered CSS dimensions, unlike canvas backing pixels.
+          // Hit rows belong to the prepared image's intrinsic coordinate space.
+          var hitWidth=preparedFrame?preparedFrame.width:canvas.width,hitHeight=preparedFrame?preparedFrame.height:canvas.height;
+          var point=window.PanelV2RobotMap.pixelAt(x,y,canvas.getBoundingClientRect(),hitWidth,hitHeight);
+          var room=null;
+          if(point&&cfg.preparedRobotMap&&preparedFrame){var row=preparedFrame.rows[point.y]||[];for(var ri=0;ri<row.length;ri++){if(point.x>=row[ri][0]&&point.x<row[ri][1]){room=cfg.robotRooms.filter(function(r){return r.id===row[ri][2];})[0]||null;break;}}}
+          else if(point){room=window.PanelV2RobotMap.roomAt(canvas.getContext('2d').getImageData(point.x,point.y,1,1).data,cfg.robotRooms);}
           robotRoomSelection.tap(room,x,y);
         },function(){robotRoomSelection.reset();},function(){return new Date().getTime();});
       }
       if(cfg.robotMap&&window.PanelV2RobotMap){
         setText(status,'Harita yükleniyor…');
-        var mapImage=new Image(),imageGeneration=0,imageTimeout=null;
+        var mapImage=new Image(),imageGeneration=0,imageTimeout=null,preparedFrame=null,preparedCache=null,lastMapStamp=null;
         function clearImage(){imageGeneration++;stopTimer(imageTimeout);mapImage.onload=mapImage.onerror=null;mapImage.removeAttribute('src');}
         function fail(message){canvas.style.display='none';status.style.display='';setText(status,message);setText(updated,'');}
         robotMap=window.PanelV2RobotMap.create({
           fetchTelemetry:function(done){
             var ids=[cfg.vacuum,cfg.robotActive,cfg.robotStatus].filter(function(id){return !!id;}),left=ids.length,entries=[];
-            ids.forEach(function(id){var version=ha.version(id);ha.fetchState(id,'robot_status',new Date().getTime(),function(error,entry){if(!error&&entry&&ha.version(id)===version){entries.push({id:id,entry:entry,version:version});}left--;if(!left){done(entries);}});});
+            var cancels=ids.map(function(id){var version=ha.version(id);return ha.fetchViewState(id,'robot_status',new Date().getTime(),function(error,entry){if(!error&&entry&&ha.version(id)===version){entries.push({id:id,entry:entry,version:version});}left--;if(!left){done(entries);}});});
+            return function(){cancels.forEach(function(cancel){cancel();});};
           },
           telemetry:function(entries){entries.forEach(function(item){if(ha.version(item.id)===item.version){ha.update(item.id,item.entry);}});scheduleRender();},
-          fetchProgress:function(done){if(!cfg.robotProgress){done(null,null);return;}ha.fetchState(cfg.robotProgress,'robot_progress',new Date().getTime(),done);},
-          fetchMap:function(done){ha.fetchState(cfg.robotMap,'robot_map',new Date().getTime(),done);},
+          fetchProgress:function(done){if(!cfg.robotProgress){done(null,null);return;}return ha.fetchViewState(cfg.robotProgress,'robot_progress',new Date().getTime(),done);},
+          fetchMap:function(done){
+            if(!cfg.preparedRobotMap){return ha.fetchViewState(cfg.robotMap,'robot_map',Date.now(),done);}
+            var cancelled=false,readHit=null;
+            var readManifest=ha.readJSON(cfg.preparedRobotMap+'?t='+Date.now(),function(error,entry){
+              if(cancelled){return;}
+              if(error||!entry||!entry.version||Date.now()-entry.checkedAt>60000){done(error||new Error('Stale map'),null);return;}
+              if(preparedCache&&preparedCache.version===entry.version){done(null,{state:entry.version,prepared:preparedCache});return;}
+              if(!/^map-[0-9a-f]{24}\.json$/.test(entry.hit)||!/^map-[0-9a-f]{24}\.png$/.test(entry.image)){done(new Error('Invalid map'),null);return;}
+              readHit=ha.readJSON(cfg.preparedRobotMap.replace(/manifest\.json$/,entry.hit),function(hitError,hit){
+                if(cancelled){return;}
+                if(hitError||!hit||!hit.width||!hit.height||!hit.rows||hit.rows.length!==hit.height){done(hitError||new Error('Invalid hit map'),null);return;}
+                hit.version=entry.version;hit.image=entry.image;preparedCache=hit;done(null,{state:entry.version,prepared:hit});
+              });
+            });
+            return function(){cancelled=true;readManifest();if(readHit){readHit();}};
+          },
           progress:function(value){robotProgressValue=value;renderRobotProgress();},
-          frame:function(stamp){
-            clearImage();var expected=imageGeneration;
+          frame:function(stamp,entry){
+            if(lastMapStamp===stamp){canvas.style.display='';status.style.display='none';return;}
+            clearImage();
+            if(cfg.preparedRobotMap){
+              var prepared=entry.prepared,expectedPrepared=imageGeneration;
+              mapImage.onload=function(){if(expectedPrepared!==imageGeneration){return;}stopTimer(imageTimeout);canvas.width=prepared.width;canvas.height=prepared.height;canvas.src=mapImage.src;preparedFrame=prepared;lastMapStamp=stamp;canvas.style.display='';status.style.display='none';setText(updated,'Son alınan harita');};
+              mapImage.onerror=function(){if(expectedPrepared===imageGeneration){fail('Harita yüklenemedi');}};
+              imageTimeout=startTimer(function(){if(expectedPrepared===imageGeneration){clearImage();fail('Harita yüklenemedi');}},10000);
+              mapImage.src=cfg.preparedRobotMap.replace(/manifest\.json$/,prepared.image);return;
+            }
+            var expected=imageGeneration;
             mapImage.onload=function(){
               if(expected!==imageGeneration){return;}stopTimer(imageTimeout);
               try{
@@ -402,7 +432,7 @@
                 var sw=(x1-x0)*mapImage.naturalWidth/240,sh=(y1-y0)*mapImage.naturalHeight/240;
                 canvas.width=Math.min(800,sw);canvas.height=Math.round(canvas.width*sh/sw);
                 canvas.getContext('2d').drawImage(mapImage,x0*mapImage.naturalWidth/240,y0*mapImage.naturalHeight/240,sw,sh,0,0,canvas.width,canvas.height);
-                canvas.style.display='';status.style.display='none';
+                lastMapStamp=stamp;canvas.style.display='';status.style.display='none';
                 var time=new Date(stamp);setText(updated,isNaN(time.getTime())?'Son alınan harita':'Harita: '+time.toLocaleDateString('tr-TR')+' '+('0'+time.getHours()).slice(-2)+':'+('0'+time.getMinutes()).slice(-2));
               }catch(error){fail('Harita görüntüsü işlenemedi');}
             };
@@ -410,13 +440,13 @@
             imageTimeout=startTimer(function(){if(expected===imageGeneration){clearImage();fail('Harita yüklenemedi · tekrar denenecek');}},10000);
             mapImage.src=ha.robotMapFrame(cfg.robotMap,new Date().getTime());
           },
-          clear:function(){clearImage();canvas.style.display='none';status.style.display='';setText(status,'Harita yükleniyor…');},
+          clear:function(){clearImage();if(!lastMapStamp){canvas.style.display='none';status.style.display='';setText(status,'Harita yükleniyor…');}},
           unavailable:fail,setTimeout:startTimer,clearTimeout:stopTimer
         });
       }
     }
     function renderRobotProgress(){if(robotProgress){setText(robotProgress,connection()&&controlsModel.robot().active&&robotProgressValue!==null?'· Temizlik %'+robotProgressValue:'');}}
-    function syncRobotMap(){if(robotRoomSelection&&(!connection()||document.hidden||activeView()!=='Robot')){robotRoomSelection.reset();}if(robotMap){robotMap.sync(activeView()==='Robot'&&!document.hidden,connection());}}
+    function syncRobotMap(){if(robotRoomSelection&&(!connection()||document.hidden||activeView()!=='Robot')){robotRoomSelection.reset();}if(robotMap){robotMap.sync(activeView()==='Robot'&&!document.hidden&&Date.now()>=robotReadyAt,connection());}}
     function addAgenda(controls){
         agendaBox=node('section','pv2-agenda');agendaBox.setAttribute('aria-label','İş takvimi');
         // This is read-only kiosk content. Legacy Crosswalk can crash in its
@@ -845,16 +875,16 @@
     function updateMeeting(v){var entry=get(cfg.meeting),age=new Date().getTime()/1000-Number(entry.attributes.last_report_epoch||0);v.meeting.classList.toggle('pv2-active',v.name==='Ana'&&connection()&&entry.state==='on'&&age>=-5&&age<40);}
     function showDenverView(active){
       if(officeProfile||active===paintedView){return;}
-      paintedView=active;
+      var previous=paintedView;paintedView=active;
       for(var i=0;i<views.length;i++){
         var view=views[i], selected=view.name===active;
+        if(previous&&view.name!==previous&&!selected){continue;}
         if(denverTabButtons.length){
           var screen=view.panel.parentNode;
           screen.hidden=!selected;
           screen.style.display=selected?'':'none';
           screen.style.setProperty('transform','none','important');
           screen.style.setProperty('-webkit-transform','none','important');
-          if(selected){screen.parentNode.scrollLeft=0;}
         }else{
           view.panel.style.display=selected?'':'none';
         }
@@ -892,12 +922,19 @@
     function entityChanged(id, state, fromSocket) {
       controlsModel.brightnessChanged(id);
       if (printerModel) { printerModel.entityChanged(id, state, fromSocket); }
-      scheduleRender();
+      if(officeProfile){scheduleRender();return;}
+      var active=activeView();
+      var shared=[cfg.weather,cfg.indoorTemperature,cfg.indoorHumidity,cfg.outdoorFeelsLike];
+      if(shared.indexOf(id)>=0||modalIds.indexOf(id)>=0||
+        (active==='Ana'&&(id===cfg.meeting||id===cfg.countdown))||
+        ((active==='Ana'||active==='Robot')&&[cfg.vacuum,cfg.robotActive,cfg.robotStatus].indexOf(id)>=0)||
+        cards.some(function(card){return card.view===active&&card.options.ids&&card.options.ids.indexOf(id)>=0;})){scheduleRender();}
     }
     ha.start();
     var days=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
     function clockTick(){syncRobotMap();weather.tick(!document.hidden&&activeView()==='Ana');if(officeProfile&&printerModel){printerModel.tick();}renderAgenda();renderForecast();var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}for(var vi=0;vi<views.length;vi++){var v=views[vi];if(v.name!==active){continue;}setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);updateMeeting(v);}if(controlsModel.countdown(now.getTime()).active){for(var ci=0;ci<cards.length;ci++){if(cards[ci].view===active&&cards[ci].options.kind==='alloff'){drawCard(cards[ci]);}}}if(lastConnection!==connection()){lastConnection=connection();scheduleRender();}}
-    function navigated(){if(agendaList){agendaList.scrollTop=0;}if(robotRoomSelection){robotRoomSelection.reset();}closeQuickDim();for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();clockTick();render();}
+    function updateVisibleClock(){var now=new Date(),active=activeView();function pad(n){return ('0'+n).slice(-2);}views.forEach(function(v){if(v.name===active){setText(v.clock,pad(now.getHours())+':'+pad(now.getMinutes()));setText(v.date,pad(now.getDate())+'.'+pad(now.getMonth()+1)+'.'+now.getFullYear());setText(v.weekday,days[now.getDay()]);}});}
+    function navigated(){clearTimeout(navTimer);robotReadyAt=Date.now()+200;if(robotMap){robotMap.sync(false,connection());}showDenverView(activeView());updateVisibleClock();if(agendaList){agendaList.scrollTop=0;}if(robotRoomSelection){robotRoomSelection.reset();}closeQuickDim();for(var pi=0;pi<cards.length;pi++){if(cards[pi].tapTimer!==null){clearTimeout(cards[pi].tapTimer);cards[pi].tapTimer=null;}}closeDialog();scheduleRender();navTimer=setTimeout(function(){clockTick();scheduleRender();},210);}
     if(denverTabButtons.length){
       window.navigateTo=function(index){
         if(denverTabs[index]){navigateScreen(denverTabs[index]);}

@@ -23,5 +23,5 @@ assert.equal(M.pixelAt(110,30,bounds,200,100),null);
 console.log('Rotated hit testing: exact room colors, ambiguity, walls and out-of-bounds PASS');
 let statusReply,updates=0,liveTimers=[];
 const telemetry=M.create({fetchProgress:()=>{},fetchMap:()=>{},fetchTelemetry:cb=>{statusReply=cb;},telemetry:()=>updates++,progress:()=>{},frame:()=>{},clear:()=>{},unavailable:()=>{},setTimeout:(cb,ms)=>{liveTimers.push([cb,ms]);return cb;},clearTimeout:cb=>{liveTimers=liveTimers.filter(t=>t[0]!==cb);}});
-telemetry.sync(true,true);assert.deepEqual(liveTimers.map(t=>t[1]),[15000,5000]);statusReply([]);assert.equal(updates,1);telemetry.sync(false,true);statusReply([]);assert.equal(updates,1);assert.equal(liveTimers.length,0);
+telemetry.sync(true,true);assert.deepEqual(liveTimers.map(t=>t[1]),[]);statusReply([]);assert.deepEqual(liveTimers.map(t=>t[1]),[5000]);assert.equal(updates,1);telemetry.sync(false,true);statusReply([]);assert.equal(updates,1);assert.equal(liveTimers.length,0);
 console.log('Active-job status polling: 5 seconds, hidden cancellation, stale response isolation PASS');
