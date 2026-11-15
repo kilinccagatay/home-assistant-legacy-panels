@@ -169,3 +169,15 @@ version. Full device regression remains pending.
 
 The panel DOM test verified hidden inactive content and zero card mutations
 after a humidity update. No camera setting, APK or robot state was changed.
+
+## Denver double-tap loading feedback — 2026-11-14
+
+Denver opens the room confirmation on the second tap in the same map room.
+A spinner and generic title appear while Home Assistant validates the room.
+The Start button becomes available only after validation and a robot readiness
+check. The confirmed room name replaces the generic title.
+
+The delayed-response browser test verified immediate feedback, correct room
+matching and cancellation. A Build 9 capture showed the loading state after
+injected double tap. No cleaning command was sent. Full device regression
+remains pending.

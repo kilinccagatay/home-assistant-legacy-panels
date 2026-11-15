@@ -537,13 +537,31 @@
     function openRobotRoomDialog(room,readPrepared){
       modalRevision++;var revision=modalRevision;focusBeforeDialog=document.activeElement;modalIds=[];modalControls=[];powerDialogState=null;
       dialog.classList.remove('pv2-light-dialog','pv2-light-dialog-simple','pv2-power-dialog');dialog.classList.add('pv2-robot-room-dialog');
-      setText(dialogTitle,room.name);settings.innerHTML='';
+      setText(dialogTitle,'Oda temizliği');settings.innerHTML='';
       var message=node('p','pv2-room-confirm-message','Oda bilgisi alınıyor…'),actions=node('div','pv2-room-confirm-actions'),cancel=node('button','','Vazgeç'),start=node('button','pv2-room-confirm-start','Temizliği başlat');
-      cancel.type=start.type='button';start.disabled=true;actions.appendChild(cancel);actions.appendChild(start);settings.appendChild(message);settings.appendChild(actions);modal.classList.add('pv2-open');cancel.focus();
+      message.classList.add('pv2-room-loading');
+      message.setAttribute('role','status');
+      message.setAttribute('aria-live','polite');
+      dialog.setAttribute('aria-busy','true');
+      cancel.type=start.type='button';start.disabled=true;actions.appendChild(cancel);actions.appendChild(start);settings.appendChild(message);settings.appendChild(actions);
       cancel.addEventListener('click',closeDialog,false);
+      modal.classList.add('pv2-open');cancel.focus();
       function valid(rooms){return connection()&&activeView()==='Robot'&&modalRevision===revision&&rooms&&rooms[String(room.id)]===room.name;}
-      message.setAttribute('role','status');message.setAttribute('aria-live','polite');dialog.setAttribute('aria-busy','true');
-      readPrepared(function(rooms){if(modalRevision!==revision){return;}dialog.setAttribute('aria-busy','false');if(!valid(rooms)){setText(message,'Oda bilgisi doğrulanamadı. Haritayı yeniden açın.');return;}setText(message,room.confirm||room.name+' odasını temizlemeye başlayacak.');start.disabled=['docked','idle'].indexOf(get(cfg.vacuum).state)<0;if(start.disabled){setText(message,'Robot şu anda yeni oda temizliği başlatmaya hazır değil.');}});
+      readPrepared(function(rooms){
+        // Give Crosswalk a frame to paint the open dialog even on a prefetch hit.
+        window.requestAnimationFrame(function(){
+          startTimer(function(){
+            if(modalRevision!==revision){return;}
+            dialog.setAttribute('aria-busy','false');
+            message.classList.remove('pv2-room-loading');
+            if(!valid(rooms)){setText(message,'Oda bilgisi doğrulanamadı. Haritayı yeniden açın.');return;}
+            setText(dialogTitle,rooms[String(room.id)]);
+            setText(message,room.confirm||room.name+' odasını temizlemeye başlayacak.');
+            start.disabled=['docked','idle'].indexOf(get(cfg.vacuum).state)<0;
+            if(start.disabled){setText(message,'Robot şu anda yeni oda temizliği başlatmaya hazır değil.');}
+          },0);
+        });
+      });
       start.addEventListener('click',function(){
         if(start.disabled){return;}start.disabled=true;setText(message,'Kontrol ediliyor…');
         ha.fetchRobotRooms(function(rooms){if(modalRevision!==revision){return;}if(!valid(rooms)){setText(message,'Oda bilgisi değişti veya bağlantı kesildi. Yeniden seçin.');return;}
