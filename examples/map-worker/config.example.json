@@ -1,0 +1,8 @@
+{
+  "entity": "image.example_robot_map",
+  "rooms": [{"id": 1, "name": "Example room", "color": [88, 214, 141]}],
+  "output": "/config/panel-map-worker/cache",
+  "bind": "127.0.0.1",
+  "port": 18766,
+  "origins": ["http://dashboard.example:4567"]
+}
